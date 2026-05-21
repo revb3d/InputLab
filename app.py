@@ -9,12 +9,19 @@ import urllib.error
 import urllib.request
 import uuid
 from ctypes import wintypes
+from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog
 
 import customtkinter as ctk
 import keyboard
 from PIL import Image
+try:
+    import pystray
+    from pystray import MenuItem as TrayMenuItem
+except ImportError:
+    pystray = None
+    TrayMenuItem = None
 
 try:
     import vgamepad as vg
@@ -26,7 +33,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.18"
+APP_VERSION = "1.3.0"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -462,6 +469,20 @@ BUTTON_ENUM_NAMES = {
     "DPAD_LEFT": "XUSB_GAMEPAD_DPAD_LEFT",
     "DPAD_RIGHT": "XUSB_GAMEPAD_DPAD_RIGHT",
 }
+RECORDER_KEY_TO_BUTTON = {
+    "a": "A",
+    "b": "B",
+    "x": "X",
+    "y": "Y",
+    "q": "LB",
+    "e": "RB",
+    "1": "BACK",
+    "2": "START",
+    "up": "DPAD_UP",
+    "down": "DPAD_DOWN",
+    "left": "DPAD_LEFT",
+    "right": "DPAD_RIGHT",
+}
 def default_macro_steps() -> list[dict]:
     return [
         {"button": "X", "hold_ms": 100, "delay_ms": 1000},
@@ -471,6 +492,22 @@ def default_macro_steps() -> list[dict]:
     ]
 
 
+def default_run_condition() -> dict:
+    return {
+        "window_title": "",
+        "process_name": "",
+    }
+
+
+def default_profile_stats() -> dict:
+    return {
+        "total_loops": 0,
+        "total_runtime_seconds": 0.0,
+        "last_run_at": "",
+        "last_run_duration_seconds": 0.0,
+    }
+
+
 def build_macro_profile(
     profile_id: str,
     name: str,
@@ -478,7 +515,14 @@ def build_macro_profile(
     interval_seconds: float = 78,
     steps: list[dict] | None = None,
     run_condition: dict | None = None,
+    notes: str = "",
+    stats: dict | None = None,
 ) -> dict:
+    base_stats = default_profile_stats()
+    loaded_stats = stats or {}
+    for key in base_stats:
+        if key in loaded_stats:
+            base_stats[key] = loaded_stats[key]
     return {
         "id": profile_id,
         "name": name,
@@ -486,8 +530,15 @@ def build_macro_profile(
         "interval_seconds": interval_seconds,
         "steps": [step.copy() for step in (steps if steps is not None else default_macro_steps())],
         "run_condition": {
-            "window_title": str((run_condition or {}).get("window_title", "")).strip(),
-            "process_name": str((run_condition or {}).get("process_name", "")).strip().lower(),
+            "window_title": str((run_condition or default_run_condition()).get("window_title", "")).strip(),
+            "process_name": str((run_condition or default_run_condition()).get("process_name", "")).strip().lower(),
+        },
+        "notes": str(notes).strip(),
+        "stats": {
+            "total_loops": int(base_stats.get("total_loops", 0) or 0),
+            "total_runtime_seconds": float(base_stats.get("total_runtime_seconds", 0.0) or 0.0),
+            "last_run_at": str(base_stats.get("last_run_at", "") or ""),
+            "last_run_duration_seconds": float(base_stats.get("last_run_duration_seconds", 0.0) or 0.0),
         },
     }
 
@@ -496,6 +547,9 @@ DEFAULT_CONFIG = {
     "toggle_hotkey": "f2",
     "target_key": "w",
     "theme_name": DEFAULT_THEME_NAME,
+    "overlay_enabled": False,
+    "close_to_tray": True,
+    "minimize_to_tray": True,
     "selected_macro_profile_id": "main",
     "macro_profiles": [
         build_macro_profile("main", "Main Macro"),
@@ -531,6 +585,9 @@ class KeyHoldApp:
         self.toggle_hotkey = self.config["toggle_hotkey"]
         self.target_key = self.config["target_key"]
         self.update_manifest_url = DEFAULT_UPDATE_MANIFEST_URL
+        self.overlay_enabled = self.config["overlay_enabled"]
+        self.close_to_tray = self.config["close_to_tray"]
+        self.minimize_to_tray = self.config["minimize_to_tray"]
         self.macro_profiles = self.config["macro_profiles"]
         self.selected_macro_profile_id = self.config["selected_macro_profile_id"]
         self.active_macro_profile_id = ""
@@ -576,6 +633,21 @@ class KeyHoldApp:
         self.section_transition_after_ids = []
         self.body_canvas_last_width = 0
         self.window_capture_after_id = None
+        self.ignore_minimize_to_tray_once = False
+        self.overlay_window = None
+        self.overlay_labels = {}
+        self.overlay_update_after_id = None
+        self.tray_icon = None
+        self.tray_thread = None
+        self.exiting_to_system = False
+        self.macro_run_started_at = 0.0
+        self.active_macro_loop_count = 0
+        self.session_profile_stats = {profile["id"]: {"session_loops": 0, "session_runtime_seconds": 0.0} for profile in self.macro_profiles}
+        self.recorder_hook = None
+        self.recorder_active = False
+        self.recorder_key_down_times = {}
+        self.recorder_steps = []
+        self.recorder_last_release_at = None
 
         self.build_ui()
         self.root.after(0, self.show_centered_window)
@@ -584,6 +656,9 @@ class KeyHoldApp:
         self.root.after(1200, self.auto_check_for_updates)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.root.bind("<Unmap>", self.on_window_unmap)
+        if self.overlay_enabled:
+            self.root.after(900, self.enable_overlay_window)
 
     def load_config(self) -> dict:
         config = DEFAULT_CONFIG.copy()
@@ -591,6 +666,7 @@ class KeyHoldApp:
         for profile in config["macro_profiles"]:
             profile["steps"] = [step.copy() for step in profile["steps"]]
             profile["run_condition"] = profile["run_condition"].copy()
+            profile["stats"] = profile["stats"].copy()
 
         self.ensure_user_data_dir()
 
@@ -624,10 +700,14 @@ class KeyHoldApp:
         for profile in config["macro_profiles"]:
             profile["steps"] = [step.copy() for step in profile["steps"]]
             profile["run_condition"] = profile["run_condition"].copy()
+            profile["stats"] = profile["stats"].copy()
 
         config["toggle_hotkey"] = str(raw_data.get("toggle_hotkey", config["toggle_hotkey"])).lower()
         config["target_key"] = str(raw_data.get("target_key", config["target_key"])).lower()
         config["theme_name"] = str(raw_data.get("theme_name", config["theme_name"])).strip() or config["theme_name"]
+        config["overlay_enabled"] = bool(raw_data.get("overlay_enabled", config["overlay_enabled"]))
+        config["close_to_tray"] = bool(raw_data.get("close_to_tray", config["close_to_tray"]))
+        config["minimize_to_tray"] = bool(raw_data.get("minimize_to_tray", config["minimize_to_tray"]))
         if config["theme_name"] not in THEME_PRESETS:
             config["theme_name"] = DEFAULT_THEME_NAME
         raw_profiles = raw_data.get("macro_profiles")
@@ -671,6 +751,9 @@ class KeyHoldApp:
             "toggle_hotkey": self.toggle_hotkey,
             "target_key": self.target_key,
             "theme_name": self.theme_name,
+            "overlay_enabled": self.overlay_enabled,
+            "close_to_tray": self.close_to_tray,
+            "minimize_to_tray": self.minimize_to_tray,
             "selected_macro_profile_id": self.selected_macro_profile_id,
             "macro_profiles": self.macro_profiles,
             "macro_hotkey": selected_profile["hotkey"],
@@ -714,6 +797,15 @@ class KeyHoldApp:
                     "window_title": self.macro_window_title_entry.get().strip(),
                     "process_name": self.macro_process_name_entry.get().strip().lower(),
                 }
+            if hasattr(self, "profile_notes_text"):
+                profile["notes"] = self.profile_notes_text.get("1.0", "end").strip()
+
+            if hasattr(self, "overlay_enabled_var"):
+                self.overlay_enabled = bool(self.overlay_enabled_var.get())
+            if hasattr(self, "close_to_tray_var"):
+                self.close_to_tray = bool(self.close_to_tray_var.get())
+            if hasattr(self, "minimize_to_tray_var"):
+                self.minimize_to_tray = bool(self.minimize_to_tray_var.get())
 
             self.sync_active_profile_fields()
 
@@ -753,7 +845,11 @@ class KeyHoldApp:
         run_condition = raw_profile.get("run_condition", {})
         if not isinstance(run_condition, dict):
             run_condition = {}
-        return build_macro_profile(profile_id, profile_name, hotkey, interval_seconds, steps, run_condition)
+        notes = str(raw_profile.get("notes", "")).strip()
+        stats = raw_profile.get("stats", {})
+        if not isinstance(stats, dict):
+            stats = {}
+        return build_macro_profile(profile_id, profile_name, hotkey, interval_seconds, steps, run_condition, notes, stats)
 
     def get_profile_by_id(self, profile_id: str) -> dict:
         for profile in self.macro_profiles:
@@ -770,6 +866,8 @@ class KeyHoldApp:
         self.macro_interval_seconds = profile["interval_seconds"]
         self.macro_steps = [step.copy() for step in profile["steps"]]
         self.macro_run_condition = profile["run_condition"].copy()
+        self.macro_notes = profile["notes"]
+        self.macro_stats = profile["stats"].copy()
 
     def build_new_profile(self, name: str | None = None) -> dict:
         profile_number = len(self.macro_profiles) + 1
@@ -1731,7 +1829,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             header,
             text="",
-            width=92,
+            width=176,
             anchor="w",
             font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
             text_color=THEME["muted"],
@@ -1757,6 +1855,85 @@ class KeyHoldApp:
             command=self.add_macro_step,
         )
         self.add_step_button.pack(side="left")
+
+        self.record_macro_button = ctk.CTkButton(
+            step_actions,
+            text="Start Recorder",
+            height=38,
+            corner_radius=12,
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color=THEME["text"],
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.toggle_macro_recorder,
+        )
+        self.record_macro_button.pack(side="left", padx=(10, 0))
+
+        self.clear_steps_button = ctk.CTkButton(
+            step_actions,
+            text="Clear Steps",
+            height=38,
+            corner_radius=12,
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color=THEME["text"],
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.clear_macro_steps,
+        )
+        self.clear_steps_button.pack(side="left", padx=(10, 0))
+
+        recorder_hint = ctk.CTkLabel(
+            steps_frame,
+            text="Recorder keys: A, B, X, Y, Q=LB, E=RB, 1=BACK, 2=START, arrows=DPAD. Start recorder, play the sequence on the keyboard, then stop recorder to replace the steps.",
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color=THEME["muted"],
+            wraplength=760,
+            justify="left",
+        )
+        recorder_hint.pack(anchor="w", padx=18, pady=(0, 16))
+
+        notes_section = self.build_section_frame(macro_config_column)
+        notes_section.pack(fill="x", pady=(0, 16))
+
+        ctk.CTkLabel(
+            notes_section,
+            text="Profile notes",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            text_color=THEME["text"],
+        ).pack(anchor="w", padx=18, pady=(16, 8))
+
+        self.profile_notes_text = ctk.CTkTextbox(
+            notes_section,
+            height=92,
+            corner_radius=14,
+            border_width=1,
+            border_color=THEME["border"],
+            fg_color=THEME["field"],
+            text_color=THEME["text"],
+            font=ctk.CTkFont(family="Segoe UI", size=13),
+            wrap="word",
+        )
+        self.profile_notes_text.pack(fill="x", padx=18, pady=(0, 16))
+
+        stats_section = self.build_section_frame(macro_config_column)
+        stats_section.pack(fill="x", pady=(0, 16))
+
+        ctk.CTkLabel(
+            stats_section,
+            text="Run statistics",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            text_color=THEME["text"],
+        ).pack(anchor="w", padx=18, pady=(16, 8))
+
+        self.profile_stats_var = ctk.StringVar(value="")
+        ctk.CTkLabel(
+            stats_section,
+            textvariable=self.profile_stats_var,
+            font=ctk.CTkFont(family="Segoe UI", size=13),
+            text_color=THEME["muted"],
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w", padx=18, pady=(0, 16))
 
         for index, variable in enumerate((
             self.macro_current_step_var,
@@ -1847,7 +2024,7 @@ class KeyHoldApp:
         self.add_tab_heading(
             tab,
             "Settings",
-            "Switch the full InputLab colorway and keep the selected theme across restarts.",
+            "Switch the full InputLab colorway, tray behavior, and overlay tools without touching your macro profiles.",
         )
 
         theme_section = self.build_section_frame(tab)
@@ -1922,6 +2099,61 @@ class KeyHoldApp:
                 wraplength=760,
                 justify="left",
             ).pack(anchor="w", padx=14, pady=(0, 10))
+
+        behavior_section = self.build_section_frame(tab)
+        behavior_section.pack(fill="x", padx=20, pady=(0, 16))
+
+        ctk.CTkLabel(
+            behavior_section,
+            text="App behavior",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            text_color=THEME["text"],
+        ).pack(anchor="w", padx=18, pady=(16, 10))
+
+        self.overlay_enabled_var = ctk.BooleanVar(value=self.overlay_enabled)
+        self.close_to_tray_var = ctk.BooleanVar(value=self.close_to_tray)
+        self.minimize_to_tray_var = ctk.BooleanVar(value=self.minimize_to_tray)
+
+        for label_text, variable, command in (
+            ("Enable always-on-top overlay", self.overlay_enabled_var, self.on_overlay_toggle_changed),
+            ("Close to system tray instead of exiting", self.close_to_tray_var, self.on_tray_setting_changed),
+            ("Minimize to system tray", self.minimize_to_tray_var, self.on_tray_setting_changed),
+        ):
+            toggle = ctk.CTkSwitch(
+                behavior_section,
+                text=label_text,
+                variable=variable,
+                onvalue=True,
+                offvalue=False,
+                progress_color=THEME["blue"],
+                button_color=THEME["text"],
+                button_hover_color=THEME["text"],
+                text_color=THEME["text"],
+                font=ctk.CTkFont(family="Segoe UI", size=13),
+                command=command,
+            )
+            toggle.pack(anchor="w", padx=18, pady=6)
+
+        hotkey_section = self.build_section_frame(tab)
+        hotkey_section.pack(fill="x", padx=20, pady=(0, 16))
+
+        ctk.CTkLabel(
+            hotkey_section,
+            text="Registered profile hotkeys",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            text_color=THEME["text"],
+        ).pack(anchor="w", padx=18, pady=(16, 8))
+
+        self.hotkey_summary_var = ctk.StringVar(value="")
+        ctk.CTkLabel(
+            hotkey_section,
+            textvariable=self.hotkey_summary_var,
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color=THEME["muted"],
+            wraplength=760,
+            justify="left",
+        ).pack(anchor="w", padx=18, pady=(0, 16))
+        self.refresh_hotkey_summary()
 
     def render_macro_steps(self, steps: list[dict]) -> None:
         if not hasattr(self, "macro_steps_rows_frame"):
@@ -2009,6 +2241,36 @@ class KeyHoldApp:
             "delay_ms": delay_entry,
         }
 
+        move_up_button = ctk.CTkButton(
+            row,
+            text="Up",
+            width=56,
+            height=36,
+            corner_radius=12,
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color=THEME["text"],
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=12, weight="bold"),
+            command=lambda target=widget_set: self.move_macro_step(target, -1),
+        )
+        move_up_button.pack(side="left", padx=(0, 8))
+        widget_set["up"] = move_up_button
+
+        move_down_button = ctk.CTkButton(
+            row,
+            text="Down",
+            width=64,
+            height=36,
+            corner_radius=12,
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color=THEME["text"],
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=12, weight="bold"),
+            command=lambda target=widget_set: self.move_macro_step(target, 1),
+        )
+        move_down_button.pack(side="left", padx=(0, 8))
+        widget_set["down"] = move_down_button
+
         remove_button = ctk.CTkButton(
             row,
             text="Remove",
@@ -2030,12 +2292,29 @@ class KeyHoldApp:
         for index, widget_set in enumerate(self.macro_step_widgets, start=1):
             widget_set["number"].configure(text=f"{index:02}")
             widget_set["remove"].configure(state="normal" if len(self.macro_step_widgets) > 1 else "disabled")
+            widget_set["up"].configure(state="normal" if index > 1 else "disabled")
+            widget_set["down"].configure(state="normal" if index < len(self.macro_step_widgets) else "disabled")
 
     def add_macro_step(self) -> None:
         self.create_macro_step_row({"button": "", "hold_ms": 90, "delay_ms": 120})
         self.refresh_macro_step_numbers()
         self.on_body_scroll_frame_configure()
         self.set_macro_status("Step added", "Added a new blank controller macro step.")
+
+    def move_macro_step(self, widget_set: dict, direction: int) -> None:
+        if widget_set not in self.macro_step_widgets:
+            return
+        index = self.macro_step_widgets.index(widget_set)
+        new_index = index + direction
+        if new_index < 0 or new_index >= len(self.macro_step_widgets):
+            return
+        self.macro_step_widgets[index], self.macro_step_widgets[new_index] = self.macro_step_widgets[new_index], self.macro_step_widgets[index]
+        for item in self.macro_step_widgets:
+            item["row"].pack_forget()
+        for item in self.macro_step_widgets:
+            item["row"].pack(fill="x", padx=18, pady=6)
+        self.refresh_macro_step_numbers()
+        self.set_macro_status("Step reordered", "Moved the selected controller macro step.")
 
     def remove_macro_step(self, widget_set: dict) -> None:
         if len(self.macro_step_widgets) <= 1:
@@ -2048,6 +2327,89 @@ class KeyHoldApp:
         self.refresh_macro_step_numbers()
         self.on_body_scroll_frame_configure()
         self.set_macro_status("Step removed", "Removed that controller macro step.")
+
+    def clear_macro_steps(self) -> None:
+        self.render_macro_steps([{"button": "", "hold_ms": 90, "delay_ms": 120}])
+        self.set_macro_status("Steps cleared", "Reset the step editor to one blank macro row.")
+
+    def toggle_macro_recorder(self) -> None:
+        if self.recorder_active:
+            self.stop_macro_recorder()
+        else:
+            self.start_macro_recorder()
+
+    def start_macro_recorder(self) -> None:
+        if self.recorder_active:
+            return
+        if self.recorder_hook is not None:
+            keyboard.unhook(self.recorder_hook)
+            self.recorder_hook = None
+
+        self.recorder_active = True
+        self.recorder_steps = []
+        self.recorder_key_down_times = {}
+        self.recorder_last_release_at = None
+        self.record_macro_button.configure(text="Stop Recorder")
+        self.set_macro_status(
+            "Recording",
+            "Recorder started. Use A, B, X, Y, Q, E, 1, 2, and arrow keys. Stop recorder when the sequence is complete.",
+        )
+
+        def on_event(event) -> None:
+            key_name = str(event.name).lower()
+            button_name = RECORDER_KEY_TO_BUTTON.get(key_name)
+            if button_name is None:
+                return
+            event_time = time.perf_counter()
+            if event.event_type == "down":
+                self.recorder_key_down_times[key_name] = event_time
+                return
+            if event.event_type != "up":
+                return
+            pressed_at = self.recorder_key_down_times.pop(key_name, None)
+            if pressed_at is None:
+                pressed_at = event_time
+            hold_ms = max(1, int((event_time - pressed_at) * 1000))
+            delay_ms = 120
+            if self.recorder_last_release_at is not None:
+                delay_ms = max(0, int((pressed_at - self.recorder_last_release_at) * 1000))
+            self.recorder_last_release_at = event_time
+            self.recorder_steps.append(
+                {
+                    "button": button_name,
+                    "hold_ms": hold_ms,
+                    "delay_ms": delay_ms,
+                }
+            )
+            self.root.after(
+                0,
+                lambda count=len(self.recorder_steps), name=button_name: self.set_macro_status(
+                    "Recording",
+                    f"Captured {count} step(s). Latest input: {name}. Stop recorder to load the captured sequence.",
+                ),
+            )
+
+        self.recorder_hook = keyboard.hook(on_event)
+
+    def stop_macro_recorder(self) -> None:
+        if not self.recorder_active:
+            return
+        self.recorder_active = False
+        self.record_macro_button.configure(text="Start Recorder")
+        if self.recorder_hook is not None:
+            keyboard.unhook(self.recorder_hook)
+            self.recorder_hook = None
+        self.recorder_key_down_times.clear()
+
+        if not self.recorder_steps:
+            self.set_macro_status("Recorder empty", "Recorder stopped without any usable inputs.")
+            return
+
+        self.render_macro_steps(self.recorder_steps)
+        self.set_macro_status(
+            "Recorder saved",
+            f"Loaded {len(self.recorder_steps)} recorded step(s) into the selected profile. Click Apply Macro to save them.",
+        )
 
     def build_status_card(self, parent, status_var, detail_var):
         card = ctk.CTkFrame(
@@ -2394,6 +2756,7 @@ class KeyHoldApp:
             "Window capture",
             "Switch to the game or app now. InputLab will capture the focused window in 3 seconds.",
         )
+        self.ignore_minimize_to_tray_once = True
         self.root.iconify()
         self.window_capture_after_id = self.root.after(3000, self.capture_foreground_window_condition)
 
@@ -2408,6 +2771,7 @@ class KeyHoldApp:
             pass
 
         self.capture_window_button.configure(state="normal", text="Capture In 3s")
+        self.ignore_minimize_to_tray_once = False
 
         if not window_title and not process_name:
             self.set_macro_status(
@@ -2541,6 +2905,7 @@ class KeyHoldApp:
         self.profile_tabs.configure(values=values)
         self.profile_tabs.set(self.get_selected_profile()["name"])
         self.delete_profile_button.configure(state="normal" if len(self.macro_profiles) > 1 else "disabled")
+        self.refresh_hotkey_summary()
 
     def load_selected_profile_into_editor(self) -> None:
         if not self.profile_editor_ready:
@@ -2557,14 +2922,37 @@ class KeyHoldApp:
         self.macro_process_name_entry.insert(0, profile["run_condition"]["process_name"])
         self.macro_interval_entry.delete(0, "end")
         self.macro_interval_entry.insert(0, f"{profile['interval_seconds']:g}")
+        self.profile_notes_text.delete("1.0", "end")
+        self.profile_notes_text.insert("1.0", profile.get("notes", ""))
 
         self.render_macro_steps(profile["steps"])
 
         self.sync_active_profile_fields()
+        self.refresh_profile_stats_view(profile)
         self.macro_detail_var.set(
             f"Press {profile['hotkey'].upper()} to start or stop the {profile['name']} controller macro."
         )
         self.update_activity_indicators()
+
+    def refresh_profile_stats_view(self, profile: dict | None = None) -> None:
+        target_profile = profile or self.get_selected_profile()
+        stats = target_profile.get("stats", default_profile_stats())
+        session_stats = self.session_profile_stats.setdefault(
+            target_profile["id"],
+            {"session_loops": 0, "session_runtime_seconds": 0.0},
+        )
+        last_run_at = stats.get("last_run_at", "") or "Never"
+        total_runtime = float(stats.get("total_runtime_seconds", 0.0) or 0.0)
+        session_runtime = float(session_stats.get("session_runtime_seconds", 0.0) or 0.0)
+        summary = (
+            f"Session loops: {int(session_stats.get('session_loops', 0) or 0)}\n"
+            f"Session runtime: {self.format_duration(session_runtime)}\n"
+            f"Total loops: {int(stats.get('total_loops', 0) or 0)}\n"
+            f"Total runtime: {self.format_duration(total_runtime)}\n"
+            f"Last run: {last_run_at}\n"
+            f"Last run length: {self.format_duration(float(stats.get('last_run_duration_seconds', 0.0) or 0.0))}"
+        )
+        self.profile_stats_var.set(summary)
 
     def change_theme(self, theme_name: str) -> None:
         if theme_name == self.theme_name:
@@ -2576,6 +2964,197 @@ class KeyHoldApp:
         self.build_ui()
         self.show_view("settings")
         self.set_macro_status("Theme changed", f"Applied {theme_name}.")
+        if self.overlay_enabled:
+            self.enable_overlay_window(force_rebuild=True)
+
+    def refresh_hotkey_summary(self) -> None:
+        if not hasattr(self, "hotkey_summary_var"):
+            return
+        lines = [f"Keyboard hold: {self.toggle_hotkey.upper()}"]
+        for profile in self.macro_profiles:
+            lines.append(f"{profile['name']}: {profile['hotkey'].upper() if profile['hotkey'] else 'Unassigned'}")
+        self.hotkey_summary_var.set("\n".join(lines))
+
+    def on_overlay_toggle_changed(self) -> None:
+        self.overlay_enabled = bool(self.overlay_enabled_var.get())
+        self.save_config()
+        if self.overlay_enabled:
+            self.enable_overlay_window(force_rebuild=True)
+        else:
+            self.disable_overlay_window()
+
+    def on_tray_setting_changed(self) -> None:
+        self.close_to_tray = bool(self.close_to_tray_var.get())
+        self.minimize_to_tray = bool(self.minimize_to_tray_var.get())
+        self.save_config()
+
+    def enable_overlay_window(self, force_rebuild: bool = False) -> None:
+        if force_rebuild:
+            self.disable_overlay_window()
+        if self.overlay_window is not None:
+            self.refresh_overlay_contents()
+            return
+
+        overlay = ctk.CTkToplevel(self.root)
+        overlay.title("InputLab Overlay")
+        overlay.geometry("320x170")
+        overlay.resizable(False, False)
+        overlay.attributes("-topmost", True)
+        overlay.configure(fg_color=THEME["shell"])
+        if self.logo_photo is not None:
+            try:
+                overlay.iconphoto(True, self.logo_photo)
+            except Exception:
+                pass
+
+        shell = ctk.CTkFrame(
+            overlay,
+            fg_color=THEME["panel"],
+            corner_radius=18,
+            border_color=THEME["border_soft"],
+            border_width=1,
+        )
+        shell.pack(fill="both", expand=True, padx=10, pady=10)
+
+        ctk.CTkLabel(
+            shell,
+            text="InputLab Overlay",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            text_color=THEME["text"],
+        ).pack(anchor="w", padx=14, pady=(12, 6))
+
+        for key in ("profile", "step", "next", "loops"):
+            label = ctk.CTkLabel(
+                shell,
+                text="",
+                font=ctk.CTkFont(family="Segoe UI", size=12),
+                text_color=THEME["muted"],
+                anchor="w",
+                justify="left",
+            )
+            label.pack(anchor="w", padx=14, pady=3)
+            self.overlay_labels[key] = label
+
+        overlay.protocol("WM_DELETE_WINDOW", self.on_overlay_closed)
+        self.overlay_window = overlay
+        self.refresh_overlay_contents()
+
+    def on_overlay_closed(self) -> None:
+        self.disable_overlay_window()
+        if hasattr(self, "overlay_enabled_var"):
+            self.overlay_enabled_var.set(False)
+        self.overlay_enabled = False
+        self.save_config()
+
+    def disable_overlay_window(self) -> None:
+        if self.overlay_update_after_id is not None:
+            self.root.after_cancel(self.overlay_update_after_id)
+            self.overlay_update_after_id = None
+        if self.overlay_window is not None:
+            try:
+                self.overlay_window.destroy()
+            except Exception:
+                pass
+            self.overlay_window = None
+        self.overlay_labels = {}
+
+    def refresh_overlay_contents(self) -> None:
+        if self.overlay_window is None:
+            return
+        selected_profile = self.get_selected_profile()
+        active_profile_name = self.get_profile_by_id(self.active_macro_profile_id)["name"] if self.active_macro_profile_id else selected_profile["name"]
+        values = {
+            "profile": f"Profile: {active_profile_name}",
+            "step": self.macro_current_step_var.get(),
+            "next": self.macro_next_action_var.get(),
+            "loops": self.macro_loop_var.get(),
+        }
+        for key, label in self.overlay_labels.items():
+            label.configure(text=values.get(key, ""))
+        if self.overlay_update_after_id is not None:
+            self.root.after_cancel(self.overlay_update_after_id)
+        self.overlay_update_after_id = self.root.after(200, self.refresh_overlay_contents)
+
+    def build_tray_image(self):
+        try:
+            if LOGO_PNG_PATH.exists():
+                return Image.open(LOGO_PNG_PATH)
+        except Exception:
+            pass
+        return Image.new("RGBA", (64, 64), THEME["panel"])
+
+    def ensure_tray_icon(self) -> bool:
+        if pystray is None or TrayMenuItem is None:
+            self.set_macro_status("Tray unavailable", "Install pystray to use system tray mode in this build.")
+            return False
+        if self.tray_icon is not None:
+            return True
+
+        menu = pystray.Menu(
+            TrayMenuItem("Show InputLab", lambda icon=None, item=None: self.root.after(0, self.restore_from_tray)),
+            TrayMenuItem("Exit InputLab", lambda icon=None, item=None: self.root.after(0, self.exit_from_tray)),
+        )
+        self.tray_icon = pystray.Icon("InputLab", self.build_tray_image(), "InputLab", menu)
+
+        def run_icon():
+            try:
+                self.tray_icon.run()
+            except Exception:
+                pass
+
+        self.tray_thread = threading.Thread(target=run_icon, daemon=True)
+        self.tray_thread.start()
+        return True
+
+    def hide_to_tray(self) -> bool:
+        if not self.ensure_tray_icon():
+            return False
+        self.root.withdraw()
+        self.set_macro_status("Tray mode", "InputLab is hidden in the system tray and still running.")
+        return True
+
+    def restore_from_tray(self) -> None:
+        self.root.deiconify()
+        self.root.lift()
+        try:
+            self.root.focus_force()
+        except Exception:
+            pass
+
+    def exit_from_tray(self) -> None:
+        self.exiting_to_system = True
+        self.on_close()
+
+    def stop_tray_icon(self) -> None:
+        if self.tray_icon is not None:
+            try:
+                self.tray_icon.stop()
+            except Exception:
+                pass
+            self.tray_icon = None
+        self.tray_thread = None
+
+    def on_window_unmap(self, _event=None) -> None:
+        if self.exiting_to_system:
+            return
+        if self.ignore_minimize_to_tray_once:
+            return
+        try:
+            if self.root.state() == "iconic" and self.minimize_to_tray:
+                self.root.after(120, self.hide_to_tray)
+        except Exception:
+            pass
+
+    @staticmethod
+    def format_duration(total_seconds: float) -> str:
+        seconds = max(0, int(total_seconds))
+        hours, remainder = divmod(seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours}h {minutes}m {seconds}s"
+        if minutes:
+            return f"{minutes}m {seconds}s"
+        return f"{seconds}s"
 
     def on_profile_tab_selected(self, selected_name: str) -> None:
         if not self.profile_editor_ready:
@@ -2593,6 +3172,7 @@ class KeyHoldApp:
         self.sync_config_from_ui()
         new_profile = self.build_new_profile()
         self.macro_profiles.append(new_profile)
+        self.session_profile_stats[new_profile["id"]] = {"session_loops": 0, "session_runtime_seconds": 0.0}
         self.selected_macro_profile_id = new_profile["id"]
         self.refresh_profile_tabs()
         self.load_selected_profile_into_editor()
@@ -2611,9 +3191,11 @@ class KeyHoldApp:
             interval_seconds=current_profile["interval_seconds"],
             steps=current_profile["steps"],
             run_condition=current_profile["run_condition"],
+            notes=current_profile.get("notes", ""),
         )
 
         self.macro_profiles.append(duplicate_profile)
+        self.session_profile_stats[duplicate_profile["id"]] = {"session_loops": 0, "session_runtime_seconds": 0.0}
         self.selected_macro_profile_id = duplicate_profile["id"]
         self.refresh_profile_tabs()
         self.load_selected_profile_into_editor()
@@ -2633,6 +3215,9 @@ class KeyHoldApp:
         current_profile["interval_seconds"] = 78
         current_profile["steps"] = default_macro_steps()
         current_profile["run_condition"] = {"window_title": "", "process_name": ""}
+        current_profile["notes"] = ""
+        current_profile["stats"] = default_profile_stats()
+        self.session_profile_stats[current_profile["id"]] = {"session_loops": 0, "session_runtime_seconds": 0.0}
         self.load_selected_profile_into_editor()
         self.save_config()
         self.register_macro_hotkeys()
@@ -2662,6 +3247,7 @@ class KeyHoldApp:
             self.stop_macro()
 
         self.macro_profiles = [profile for profile in self.macro_profiles if profile["id"] != current_profile["id"]]
+        self.session_profile_stats.pop(current_profile["id"], None)
         self.selected_macro_profile_id = self.macro_profiles[0]["id"]
         self.refresh_profile_tabs()
         self.load_selected_profile_into_editor()
@@ -2731,6 +3317,7 @@ class KeyHoldApp:
                 normalized["hotkey"] = imported_hotkey
 
                 self.macro_profiles.append(normalized)
+                self.session_profile_stats[normalized["id"]] = {"session_loops": 0, "session_runtime_seconds": 0.0}
                 imported_profiles.append(normalized)
 
         if not imported_profiles:
@@ -2829,6 +3416,11 @@ class KeyHoldApp:
         profile["hotkey"] = new_hotkey
         profile["interval_seconds"] = interval_seconds
         profile["steps"] = self.collect_macro_steps(include_blank_steps=True)
+        profile["run_condition"] = {
+            "window_title": self.macro_window_title_entry.get().strip(),
+            "process_name": self.macro_process_name_entry.get().strip().lower(),
+        }
+        profile["notes"] = self.profile_notes_text.get("1.0", "end").strip()
         self.refresh_profile_tabs()
         self.register_macro_hotkeys()
         self.sync_active_profile_fields()
@@ -2941,6 +3533,8 @@ class KeyHoldApp:
 
         self.macro_running.set()
         self.active_macro_profile_id = target_profile["id"]
+        self.macro_run_started_at = time.perf_counter()
+        self.active_macro_loop_count = 0
         self.sync_active_profile_fields()
         self.reset_macro_progress()
         self.update_activity_indicators()
@@ -2956,6 +3550,22 @@ class KeyHoldApp:
         )
 
     def stop_macro(self) -> None:
+        stopped_profile = self.get_profile_by_id(self.active_macro_profile_id) if self.active_macro_profile_id else None
+        if stopped_profile is not None and self.macro_run_started_at > 0:
+            run_seconds = max(0.0, time.perf_counter() - self.macro_run_started_at)
+            stopped_profile["stats"]["total_loops"] = int(stopped_profile["stats"].get("total_loops", 0) or 0) + self.active_macro_loop_count
+            stopped_profile["stats"]["total_runtime_seconds"] = float(stopped_profile["stats"].get("total_runtime_seconds", 0.0) or 0.0) + run_seconds
+            stopped_profile["stats"]["last_run_duration_seconds"] = run_seconds
+            stopped_profile["stats"]["last_run_at"] = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+            session_stats = self.session_profile_stats.setdefault(
+                stopped_profile["id"],
+                {"session_loops": 0, "session_runtime_seconds": 0.0},
+            )
+            session_stats["session_loops"] += self.active_macro_loop_count
+            session_stats["session_runtime_seconds"] += run_seconds
+            self.refresh_profile_stats_view(stopped_profile)
+            self.save_config()
+
         self.macro_running.clear()
 
         if self.virtual_gamepad is not None:
@@ -2969,6 +3579,8 @@ class KeyHoldApp:
             self.macro_thread.join(timeout=0.3)
         self.macro_thread = None
         self.active_macro_profile_id = ""
+        self.macro_run_started_at = 0.0
+        self.active_macro_loop_count = 0
         self.reset_macro_progress()
         self.update_activity_indicators()
 
@@ -2989,6 +3601,7 @@ class KeyHoldApp:
         loop_count = 0
         while self.macro_running.is_set():
             loop_count += 1
+            self.active_macro_loop_count = loop_count
             self.root.after(0, lambda lc=loop_count: self.macro_loop_var.set(f"Loop count: {lc}"))
             for index, step in enumerate(steps, start=1):
                 if not self.macro_running.is_set():
@@ -3091,6 +3704,7 @@ class KeyHoldApp:
 
     def on_macro_loop_complete(self) -> None:
         profile = self.get_selected_profile()
+        self.refresh_profile_stats_view(profile)
         self.reset_macro_progress()
         self.update_activity_indicators()
         self.set_macro_status(
@@ -3103,6 +3717,7 @@ class KeyHoldApp:
         self.macro_last_action_var.set("Last action: None")
         self.macro_next_action_var.set("Next action in: --")
         self.macro_loop_var.set("Loop count: 0")
+        self.refresh_overlay_contents()
 
     def on_keyboard_hold_started(self) -> None:
         self.update_activity_indicators()
@@ -3138,6 +3753,7 @@ class KeyHoldApp:
         if hasattr(self, "live_progress_accent"):
             self.live_progress_accent.configure(fg_color=THEME["green"] if macro_is_running else THEME["blue"])
             self.update_live_progress_animation(macro_is_running)
+        self.refresh_overlay_contents()
 
     def update_activity_dot(self, widget, active: bool, color: str, state_name: str) -> None:
         previous = getattr(self, state_name)
@@ -3220,6 +3836,7 @@ class KeyHoldApp:
         self.macro_status_var.set(status)
         self.macro_detail_var.set(detail)
         self.update_macro_status()
+        self.refresh_overlay_contents()
 
     def set_update_status(self, title: str, detail: str, has_download: bool = False) -> None:
         self.update_status_var.set(title)
@@ -3439,6 +4056,7 @@ class KeyHoldApp:
             encoding="utf-8",
         )
         subprocess.Popen(["cmd", "/c", str(launcher_path)], creationflags=0x08000000)
+        self.exiting_to_system = True
         self.on_close()
 
     @staticmethod
@@ -3496,12 +4114,19 @@ class KeyHoldApp:
             "Profiles imported": "#1d4ed8",
             "Profiles exported": "#1d4ed8",
             "Step added": "#1d4ed8",
+            "Step reordered": "#1d4ed8",
             "Step removed": THEME["field"],
+            "Steps cleared": THEME["field"],
             "Theme changed": "#1d4ed8",
             "Window capture": "#4338ca",
             "Window captured": "#1d4ed8",
             "Window capture failed": "#7c2d12",
             "Window mismatch": "#7c2d12",
+            "Recording": "#4338ca",
+            "Recorder saved": "#1d4ed8",
+            "Recorder empty": THEME["field"],
+            "Tray mode": "#1d4ed8",
+            "Tray unavailable": "#7c2d12",
             "Driver needed": "#7c2d12",
             "Invalid hotkey": "#7c2d12",
             "Invalid macro": "#7c2d12",
@@ -3518,8 +4143,14 @@ class KeyHoldApp:
             self.pulse_status_badge(self.macro_status_badge, color, self.macro_status_pulse_after_ids)
 
     def on_close(self) -> None:
+        if not self.exiting_to_system and self.close_to_tray:
+            if self.hide_to_tray():
+                return
+
         self.sync_config_from_ui()
         self.save_config()
+        if self.recorder_active:
+            self.stop_macro_recorder()
         self.stop_macro()
         self.force_release()
 
@@ -3527,9 +4158,15 @@ class KeyHoldApp:
             self.root.after_cancel(self.window_capture_after_id)
             self.window_capture_after_id = None
 
+        self.disable_overlay_window()
+        self.stop_tray_icon()
+
         if self.capture_target_hook is not None:
             keyboard.unhook(self.capture_target_hook)
             self.capture_target_hook = None
+        if self.recorder_hook is not None:
+            keyboard.unhook(self.recorder_hook)
+            self.recorder_hook = None
 
         if self.key_hold_hotkey_handle is not None:
             keyboard.remove_hotkey(self.key_hold_hotkey_handle)
