@@ -1,5 +1,5 @@
 {
-  "version": "1.2.4",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.4/InputLabSetup.exe",
-  "notes": "Added more lightweight UI motion: animated gradient button sheen, status badge pulses, view-switch accent motion, and a live-progress heartbeat while macros run."
+  "version": "1.2.5",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.5/InputLabSetup.exe",
+  "notes": "Faster faded button sheen, cleaner borderless primary gradient buttons, a wider startup window, and DPI-scaling changes to prevent monitor-switch refresh lag."
 }

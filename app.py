@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.4"
+APP_VERSION = "1.2.5"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -64,6 +64,7 @@ class GradientButton(tk.Canvas):
         width: int = 174,
         height: int = 48,
         corner_radius: int = 16,
+        outline_color: str | None = None,
     ) -> None:
         parent_bg = THEME["panel_low"]
         try:
@@ -92,12 +93,16 @@ class GradientButton(tk.Canvas):
         self.button_width = width
         self.button_height = height
         self.corner_radius = corner_radius
+        self.outline_color = outline_color
         self.current_colors = colors
         self.animation_after_id = None
         self.sheen_after_id = None
         self.sheen_x = -48
         self.is_hovering = False
         self.is_pressed = False
+        self.radius = min(self.corner_radius, self.button_height // 2, self.button_width // 2)
+        self.vertical_spans = self.build_vertical_spans()
+        self.gradient_cache = {}
         self.bind("<Enter>", self.on_enter)
         self.bind("<Leave>", self.on_leave)
         self.bind("<ButtonPress-1>", self.on_press)
@@ -136,7 +141,7 @@ class GradientButton(tk.Canvas):
             self.animation_after_id = None
 
         start_colors = self.current_colors
-        frames = 7
+        frames = 5
 
         def step(frame: int) -> None:
             ratio = frame / frames
@@ -146,7 +151,7 @@ class GradientButton(tk.Canvas):
             )
             self.draw(colors)
             if frame < frames:
-                self.animation_after_id = self.after(14, lambda: step(frame + 1))
+                self.animation_after_id = self.after(10, lambda: step(frame + 1))
             else:
                 self.animation_after_id = None
 
@@ -155,32 +160,16 @@ class GradientButton(tk.Canvas):
     def draw(self, colors: tuple[str, str], pressed: bool = False) -> None:
         self.current_colors = colors
         self.delete("all")
-        radius = min(self.corner_radius, self.button_height // 2, self.button_width // 2)
         if not pressed:
-            self.draw_shadow(radius)
-        left = self.winfo_rgb(colors[0])
-        right = self.winfo_rgb(colors[1])
-        for x in range(self.button_width):
-            ratio = x / max(self.button_width - 1, 1)
-            red = int((left[0] + (right[0] - left[0]) * ratio) / 256)
-            green = int((left[1] + (right[1] - left[1]) * ratio) / 256)
-            blue = int((left[2] + (right[2] - left[2]) * ratio) / 256)
-            top = 0
-            bottom = self.button_height
-            if x < radius:
-                offset = radius - x
-                inset = int(radius - (radius * radius - offset * offset) ** 0.5)
-                top = inset
-                bottom = self.button_height - inset
-            elif x >= self.button_width - radius:
-                offset = x - (self.button_width - radius - 1)
-                inset = int(radius - (radius * radius - offset * offset) ** 0.5)
-                top = inset
-                bottom = self.button_height - inset
-            self.create_line(x, top, x, bottom, fill=f"#{red:02x}{green:02x}{blue:02x}")
+            self.draw_shadow(self.radius)
+        gradient = self.get_gradient(colors)
+        for x, color in enumerate(gradient):
+            top, bottom = self.vertical_spans[x]
+            self.create_line(x, top, x, bottom, fill=color)
         if self.is_hovering:
-            self.draw_sheen(radius)
-        self.draw_rounded_border(radius)
+            self.draw_sheen()
+        if self.outline_color:
+            self.draw_rounded_border(self.radius)
         self.create_text(
             self.button_width // 2,
             (self.button_height // 2) + (1 if pressed else 0),
@@ -202,27 +191,23 @@ class GradientButton(tk.Canvas):
         self.create_line(2, radius + 4, 2, height - radius, fill=shadow)
         self.create_line(width, radius + 4, width, height - radius, fill=shadow)
 
-    def draw_sheen(self, radius: int) -> None:
-        band_width = 34
+    def draw_sheen(self) -> None:
+        band_width = 58
+        center = band_width / 2
+        gradient = self.get_gradient(self.current_colors)
         for offset in range(band_width):
             x = int(self.sheen_x + offset)
             if x < 0 or x >= self.button_width:
                 continue
-            alpha = 1 - abs((offset / band_width) - 0.5) * 2
-            color = self.mix_hex("#ffffff", self.current_colors[1], 0.68 + (0.18 * (1 - alpha)))
-            top = 1
-            bottom = self.button_height - 1
-            if x < radius:
-                circle_offset = radius - x
-                inset = int(radius - (radius * radius - circle_offset * circle_offset) ** 0.5)
-                top = inset
-                bottom = self.button_height - inset
-            elif x >= self.button_width - radius:
-                circle_offset = x - (self.button_width - radius - 1)
-                inset = int(radius - (radius * radius - circle_offset * circle_offset) ** 0.5)
-                top = inset
-                bottom = self.button_height - inset
-            self.create_line(x, top + 2, x, bottom - 2, fill=color)
+            alpha = max(0, 1 - abs(offset - center) / center)
+            alpha = alpha * alpha
+            color = self.mix_hex(gradient[x], "#ffffff", alpha * 0.34)
+            top, bottom = self.vertical_spans[x]
+            taper = int(abs(offset - center) * 0.18)
+            sheen_top = top + 3 + taper
+            sheen_bottom = bottom - 3 - taper
+            if sheen_top < sheen_bottom:
+                self.create_line(x, sheen_top, x, sheen_bottom, fill=color)
 
     def start_sheen(self) -> None:
         self.sheen_x = -44
@@ -231,20 +216,25 @@ class GradientButton(tk.Canvas):
             if not self.is_hovering:
                 self.sheen_after_id = None
                 return
-            self.sheen_x += 14
+            self.sheen_x += 30
             self.draw(self.current_colors)
             if self.sheen_x < self.button_width + 36:
-                self.sheen_after_id = self.after(18, step)
+                self.sheen_after_id = self.after(9, step)
             else:
-                self.sheen_after_id = self.after(700, self.start_sheen)
+                self.sheen_after_id = self.after(430, self.restart_sheen)
 
         if self.sheen_after_id is None:
             step()
 
+    def restart_sheen(self) -> None:
+        self.sheen_after_id = None
+        if self.is_hovering:
+            self.start_sheen()
+
     def draw_rounded_border(self, radius: int) -> None:
         width = self.button_width - 1
         height = self.button_height - 1
-        outline = "#6ea8ff"
+        outline = self.outline_color or "#6ea8ff"
         self.create_arc(0, 0, radius * 2, radius * 2, start=90, extent=90, style="arc", outline=outline)
         self.create_arc(width - radius * 2, 0, width, radius * 2, start=0, extent=90, style="arc", outline=outline)
         self.create_arc(0, height - radius * 2, radius * 2, height, start=180, extent=90, style="arc", outline=outline)
@@ -278,6 +268,41 @@ class GradientButton(tk.Canvas):
             for index in range(3)
         ]
         return f"#{values[0]:02x}{values[1]:02x}{values[2]:02x}"
+
+    def build_vertical_spans(self) -> list[tuple[int, int]]:
+        spans = []
+        for x in range(self.button_width):
+            top = 0
+            bottom = self.button_height
+            if x < self.radius:
+                offset = self.radius - x
+                inset = int(self.radius - (self.radius * self.radius - offset * offset) ** 0.5)
+                top = inset
+                bottom = self.button_height - inset
+            elif x >= self.button_width - self.radius:
+                offset = x - (self.button_width - self.radius - 1)
+                inset = int(self.radius - (self.radius * self.radius - offset * offset) ** 0.5)
+                top = inset
+                bottom = self.button_height - inset
+            spans.append((top, bottom))
+        return spans
+
+    def get_gradient(self, colors: tuple[str, str]) -> list[str]:
+        if colors in self.gradient_cache:
+            return self.gradient_cache[colors]
+
+        left = self.hex_to_rgb(colors[0])
+        right = self.hex_to_rgb(colors[1])
+        gradient = []
+        for x in range(self.button_width):
+            ratio = x / max(self.button_width - 1, 1)
+            values = [
+                int(left[index] + (right[index] - left[index]) * ratio)
+                for index in range(3)
+            ]
+            gradient.append(f"#{values[0]:02x}{values[1]:02x}{values[2]:02x}")
+        self.gradient_cache[colors] = gradient
+        return gradient
 
     @staticmethod
     def hex_to_rgb(color: str) -> tuple[int, int, int]:
@@ -354,6 +379,10 @@ DEFAULT_CONFIG = {
 
 class KeyHoldApp:
     def __init__(self) -> None:
+        try:
+            ctk.deactivate_automatic_dpi_awareness()
+        except AttributeError:
+            pass
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
         self.apply_windows_app_id()
@@ -361,8 +390,8 @@ class KeyHoldApp:
         self.root = ctk.CTk()
         self.root.withdraw()
         self.root.title("InputLab")
-        self.root.geometry("1180x760")
-        self.root.minsize(980, 700)
+        self.root.geometry("1320x820")
+        self.root.minsize(1100, 720)
         self.root.configure(fg_color=THEME["app_bg"])
         self.logo_image = None
         self.logo_photo = None
