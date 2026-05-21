@@ -21,7 +21,7 @@ except ImportError:
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.9"
+APP_VERSION = "1.0.10"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -1390,7 +1390,15 @@ class KeyHoldApp:
 
     def run_update_check(self) -> None:
         try:
-            with urllib.request.urlopen(self.update_manifest_url, timeout=8) as response:
+            manifest_url = self.build_uncached_url(self.update_manifest_url)
+            request = urllib.request.Request(
+                manifest_url,
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                },
+            )
+            with urllib.request.urlopen(request, timeout=8) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except urllib.error.URLError as exc:
             self.root.after(
@@ -1569,6 +1577,11 @@ class KeyHoldApp:
         if left_parts < right_parts:
             return -1
         return 0
+
+    @staticmethod
+    def build_uncached_url(url: str) -> str:
+        separator = "&" if "?" in url else "?"
+        return f"{url}{separator}t={int(time.time())}"
 
     def update_key_status(self) -> None:
         color_map = {
