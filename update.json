@@ -1,5 +1,5 @@
 {
-  "version": "1.2.10",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.10/InputLabSetup.exe",
-  "notes": "Moved live progress directly under controller macro status so it is visible immediately at the default startup window size."
+  "version": "1.2.11",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.11/InputLabSetup.exe",
+  "notes": "Enabled proper Windows per-monitor DPI awareness so InputLab stays sharp on higher-resolution displays instead of appearing blurred."
 }

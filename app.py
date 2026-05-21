@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.10"
+APP_VERSION = "1.2.11"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -494,10 +494,7 @@ DEFAULT_CONFIG = {
 
 class KeyHoldApp:
     def __init__(self) -> None:
-        try:
-            ctk.deactivate_automatic_dpi_awareness()
-        except AttributeError:
-            pass
+        self.configure_windows_dpi_awareness()
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
         self.apply_windows_app_id()
@@ -2111,6 +2108,25 @@ class KeyHoldApp:
     def apply_windows_app_id(self) -> None:
         try:
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("revb3d.InputLab")
+        except Exception:
+            pass
+
+    def configure_windows_dpi_awareness(self) -> None:
+        try:
+            dpi_context_per_monitor_v2 = ctypes.c_void_p(-4)
+            if ctypes.windll.user32.SetProcessDpiAwarenessContext(dpi_context_per_monitor_v2):
+                return
+        except Exception:
+            pass
+
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+            return
+        except Exception:
+            pass
+
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
         except Exception:
             pass
 
