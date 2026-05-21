@@ -1,5 +1,5 @@
 {
-  "version": "1.2.15",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.15/InputLabSetup.exe",
-  "notes": "Optimized UI performance by reducing redraw-heavy animations, skipping forced layout refreshes during view switches, and throttling resize and scroll repaint work."
+  "version": "1.2.16",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.16/InputLabSetup.exe",
+  "notes": "Darkened the primary gradient button fill itself so the control stays visually dark instead of rendering as a bright pastel gradient."
 }

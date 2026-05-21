@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.15"
+APP_VERSION = "1.2.16"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -277,7 +277,8 @@ class GradientButton(tk.Canvas):
         self.delete("all")
         if not pressed:
             self.draw_shadow(self.radius)
-        gradient = self.get_gradient(colors)
+        render_colors = self.darken_pair(colors, 0.72 if not pressed else 0.64)
+        gradient = self.get_gradient(render_colors)
         for x, color in enumerate(gradient):
             top, bottom = self.vertical_spans[x]
             self.create_line(x, top, x, bottom, fill=color)
