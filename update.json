@@ -1,5 +1,5 @@
 {
-  "version": "1.2.6",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.6/InputLabSetup.exe",
-  "notes": "Controller macro profiles can now add or remove steps dynamically, and saved/imported profiles keep all of their macro steps instead of being limited to four."
+  "version": "1.2.7",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.7/InputLabSetup.exe",
+  "notes": "Added a full Settings tab with six built-in color themes. Theme selection now persists across restarts and rebuilds the app UI with the selected preset."
 }

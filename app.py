@@ -25,32 +25,146 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.6"
+APP_VERSION = "1.2.7"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
-THEME = {
-    "app_bg": "#070b10",
-    "shell": "#0b1119",
-    "shell_high": "#111a27",
-    "panel": "#0e1621",
-    "panel_high": "#121d2b",
-    "panel_low": "#090f16",
-    "field": "#0f1826",
-    "field_hover": "#172337",
-    "border": "#243149",
-    "border_soft": "#1a2638",
-    "text": "#f4f8ff",
-    "muted": "#93a4bd",
-    "faint": "#65748a",
-    "blue": "#2f7df6",
-    "blue_hover": "#5a9cff",
-    "green": "#16a34a",
-    "green_deep": "#14532d",
-    "red": "#ef4444",
-    "amber": "#f59e0b",
-    "cyan": "#22d3ee",
+THEME_PRESETS = {
+    "Graphite + Electric Lime": {
+        "app_bg": "#090c0f",
+        "shell": "#10151a",
+        "shell_high": "#161d24",
+        "panel": "#121922",
+        "panel_high": "#1a2430",
+        "panel_low": "#0d1218",
+        "field": "#16202a",
+        "field_hover": "#1d2936",
+        "border": "#2d3b4b",
+        "border_soft": "#202b38",
+        "text": "#f5fbff",
+        "muted": "#9badbf",
+        "faint": "#728195",
+        "blue": "#89ff3d",
+        "blue_hover": "#a6ff74",
+        "green": "#5ce65c",
+        "green_deep": "#287a35",
+        "red": "#ff5a5a",
+        "amber": "#f3c94a",
+        "cyan": "#69f0c1",
+    },
+    "Midnight Navy + Amber": {
+        "app_bg": "#070a10",
+        "shell": "#0b1220",
+        "shell_high": "#121c2d",
+        "panel": "#10192a",
+        "panel_high": "#172339",
+        "panel_low": "#09111d",
+        "field": "#132033",
+        "field_hover": "#1b2b45",
+        "border": "#273756",
+        "border_soft": "#19253a",
+        "text": "#f7f4ee",
+        "muted": "#a8b5c9",
+        "faint": "#7987a0",
+        "blue": "#ffb443",
+        "blue_hover": "#ffc96f",
+        "green": "#f59e0b",
+        "green_deep": "#9a5d11",
+        "red": "#f87171",
+        "amber": "#ffd166",
+        "cyan": "#66c7ff",
+    },
+    "Carbon + Ice Blue": {
+        "app_bg": "#06080b",
+        "shell": "#0c1015",
+        "shell_high": "#151b23",
+        "panel": "#10161d",
+        "panel_high": "#18212c",
+        "panel_low": "#0a0f15",
+        "field": "#141c26",
+        "field_hover": "#1a2634",
+        "border": "#2b394b",
+        "border_soft": "#1d2735",
+        "text": "#f4fbff",
+        "muted": "#9caec2",
+        "faint": "#71839a",
+        "blue": "#61c8ff",
+        "blue_hover": "#92dcff",
+        "green": "#3fc4ff",
+        "green_deep": "#1b7299",
+        "red": "#ff6b6b",
+        "amber": "#f7c65d",
+        "cyan": "#b5f2ff",
+    },
+    "Gunmetal + Redline": {
+        "app_bg": "#09090a",
+        "shell": "#141416",
+        "shell_high": "#1a1b1f",
+        "panel": "#18191d",
+        "panel_high": "#23252b",
+        "panel_low": "#101114",
+        "field": "#1d2026",
+        "field_hover": "#292d35",
+        "border": "#373c46",
+        "border_soft": "#272b33",
+        "text": "#fff7f7",
+        "muted": "#b8a6ab",
+        "faint": "#85777d",
+        "blue": "#ff4d4d",
+        "blue_hover": "#ff7878",
+        "green": "#ff6464",
+        "green_deep": "#9c2e2e",
+        "red": "#ff3b3b",
+        "amber": "#ff9f43",
+        "cyan": "#ffb4b4",
+    },
+    "Obsidian + Emerald": {
+        "app_bg": "#060a08",
+        "shell": "#0d1411",
+        "shell_high": "#142019",
+        "panel": "#0f1a14",
+        "panel_high": "#18261f",
+        "panel_low": "#09120d",
+        "field": "#132018",
+        "field_hover": "#1a2d23",
+        "border": "#2a4336",
+        "border_soft": "#1b2c24",
+        "text": "#f3fff8",
+        "muted": "#9fbaa9",
+        "faint": "#6f8a79",
+        "blue": "#2ecc71",
+        "blue_hover": "#58df91",
+        "green": "#25c06d",
+        "green_deep": "#196a43",
+        "red": "#ff6f61",
+        "amber": "#e7c15a",
+        "cyan": "#7ef0c7",
+    },
+    "Slate + Violet": {
+        "app_bg": "#090910",
+        "shell": "#12131c",
+        "shell_high": "#1a1d29",
+        "panel": "#151824",
+        "panel_high": "#202534",
+        "panel_low": "#0d1018",
+        "field": "#1a1f2d",
+        "field_hover": "#242b3d",
+        "border": "#3a4360",
+        "border_soft": "#262d42",
+        "text": "#f8f7ff",
+        "muted": "#a7afca",
+        "faint": "#757e9d",
+        "blue": "#8b7dff",
+        "blue_hover": "#a69bff",
+        "green": "#7d6bff",
+        "green_deep": "#4d3fa8",
+        "red": "#ff6f91",
+        "amber": "#f6c667",
+        "cyan": "#cabfff",
+    },
 }
+DEFAULT_THEME_NAME = "Graphite + Electric Lime"
+THEME = THEME_PRESETS[DEFAULT_THEME_NAME].copy()
 
 
 class GradientButton(tk.Canvas):
@@ -370,6 +484,7 @@ def build_macro_profile(
 DEFAULT_CONFIG = {
     "toggle_hotkey": "f2",
     "target_key": "w",
+    "theme_name": DEFAULT_THEME_NAME,
     "selected_macro_profile_id": "main",
     "macro_profiles": [
         build_macro_profile("main", "Main Macro"),
@@ -392,12 +507,15 @@ class KeyHoldApp:
         self.root.title("InputLab")
         self.root.geometry("1320x820")
         self.root.minsize(1100, 720)
+
+        self.config = self.load_config()
+        self.theme_name = self.config["theme_name"]
+        self.apply_theme(self.theme_name)
         self.root.configure(fg_color=THEME["app_bg"])
         self.logo_image = None
         self.logo_photo = None
         self.apply_window_icon()
 
-        self.config = self.load_config()
         self.toggle_hotkey = self.config["toggle_hotkey"]
         self.target_key = self.config["target_key"]
         self.update_manifest_url = DEFAULT_UPDATE_MANIFEST_URL
@@ -442,6 +560,7 @@ class KeyHoldApp:
         self.macro_status_pulse_after_ids = []
         self.live_progress_pulse_after_id = None
         self.view_animation_after_ids = []
+        self.ui_root = None
 
         self.build_ui()
         self.root.after(0, self.show_centered_window)
@@ -491,6 +610,9 @@ class KeyHoldApp:
 
         config["toggle_hotkey"] = str(raw_data.get("toggle_hotkey", config["toggle_hotkey"])).lower()
         config["target_key"] = str(raw_data.get("target_key", config["target_key"])).lower()
+        config["theme_name"] = str(raw_data.get("theme_name", config["theme_name"])).strip() or config["theme_name"]
+        if config["theme_name"] not in THEME_PRESETS:
+            config["theme_name"] = DEFAULT_THEME_NAME
         raw_profiles = raw_data.get("macro_profiles")
         normalized_profiles = []
         if isinstance(raw_profiles, list) and raw_profiles:
@@ -531,6 +653,7 @@ class KeyHoldApp:
         payload = {
             "toggle_hotkey": self.toggle_hotkey,
             "target_key": self.target_key,
+            "theme_name": self.theme_name,
             "selected_macro_profile_id": self.selected_macro_profile_id,
             "macro_profiles": self.macro_profiles,
             "macro_hotkey": selected_profile["hotkey"],
@@ -571,6 +694,12 @@ class KeyHoldApp:
                 profile["steps"] = self.collect_macro_steps(include_blank_steps=True)
 
             self.sync_active_profile_fields()
+
+    def apply_theme(self, theme_name: str) -> None:
+        selected_theme = THEME_PRESETS.get(theme_name, THEME_PRESETS[DEFAULT_THEME_NAME])
+        THEME.clear()
+        THEME.update(selected_theme)
+        self.theme_name = theme_name if theme_name in THEME_PRESETS else DEFAULT_THEME_NAME
 
     def normalize_macro_steps(self, raw_steps) -> list[dict]:
         normalized_steps = []
@@ -637,6 +766,12 @@ class KeyHoldApp:
         return ""
 
     def build_ui(self) -> None:
+        if self.ui_root is not None:
+            self.ui_root.destroy()
+            self.ui_root = None
+        self.root.configure(fg_color=THEME["app_bg"])
+        self.root.unbind_all("<MouseWheel>")
+
         outer = ctk.CTkFrame(
             self.root,
             fg_color=THEME["shell"],
@@ -645,6 +780,7 @@ class KeyHoldApp:
             border_width=1,
         )
         outer.pack(fill="both", expand=True, padx=18, pady=18)
+        self.ui_root = outer
 
         header = ctk.CTkFrame(
             outer,
@@ -821,6 +957,33 @@ class KeyHoldApp:
         )
         self.macro_nav_button.pack(side="left", fill="x", expand=True)
 
+        self.settings_nav_row = ctk.CTkFrame(sidebar, fg_color="transparent")
+        self.settings_nav_row.pack(fill="x", padx=14, pady=(10, 0))
+
+        self.settings_activity_indicator = ctk.CTkLabel(
+            self.settings_nav_row,
+            text="",
+            width=12,
+            height=12,
+            corner_radius=6,
+            fg_color=THEME["border"],
+        )
+        self.settings_activity_indicator.pack(side="left", padx=(2, 10))
+
+        self.settings_nav_button = ctk.CTkButton(
+            self.settings_nav_row,
+            text="Settings",
+            height=48,
+            corner_radius=16,
+            anchor="w",
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color="#dce7f8",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            command=lambda: self.show_view("settings"),
+        )
+        self.settings_nav_button.pack(side="left", fill="x", expand=True)
+
         self.add_accent_line(sidebar, THEME["blue"], height=3, padx=18, pady=(18, 12))
 
         update_card = ctk.CTkFrame(
@@ -903,9 +1066,11 @@ class KeyHoldApp:
 
         self.keyboard_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
         self.macro_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
+        self.settings_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
 
         self.build_keyboard_tab(self.keyboard_view)
         self.build_macro_tab(self.macro_view)
+        self.build_settings_tab(self.settings_view)
         self.show_view("keyboard")
         self.update_activity_indicators()
 
@@ -947,15 +1112,14 @@ class KeyHoldApp:
         )
 
     def show_view(self, view_name: str) -> None:
-        if self.current_view == view_name and self.keyboard_view.winfo_ismapped() or (
-            self.current_view == view_name and self.macro_view.winfo_ismapped()
-        ):
+        if self.current_view == view_name:
             return
 
         self.current_view = view_name
 
         self.keyboard_view.pack_forget()
         self.macro_view.pack_forget()
+        self.settings_view.pack_forget()
 
         if view_name == "keyboard":
             self.keyboard_view.pack(fill="both", expand=True)
@@ -969,7 +1133,12 @@ class KeyHoldApp:
                 hover_color=THEME["field_hover"],
                 text_color="#dce7f8",
             )
-        else:
+            self.settings_nav_button.configure(
+                fg_color=THEME["field"],
+                hover_color=THEME["field_hover"],
+                text_color="#dce7f8",
+            )
+        elif view_name == "macro":
             self.macro_view.pack(fill="both", expand=True)
             self.macro_nav_button.configure(
                 fg_color=THEME["green_deep"],
@@ -977,6 +1146,28 @@ class KeyHoldApp:
                 text_color=THEME["text"],
             )
             self.keyboard_nav_button.configure(
+                fg_color=THEME["field"],
+                hover_color=THEME["field_hover"],
+                text_color="#dce7f8",
+            )
+            self.settings_nav_button.configure(
+                fg_color=THEME["field"],
+                hover_color=THEME["field_hover"],
+                text_color="#dce7f8",
+            )
+        else:
+            self.settings_view.pack(fill="both", expand=True)
+            self.settings_nav_button.configure(
+                fg_color=THEME["green_deep"],
+                hover_color=THEME["green"],
+                text_color=THEME["text"],
+            )
+            self.keyboard_nav_button.configure(
+                fg_color=THEME["field"],
+                hover_color=THEME["field_hover"],
+                text_color="#dce7f8",
+            )
+            self.macro_nav_button.configure(
                 fg_color=THEME["field"],
                 hover_color=THEME["field_hover"],
                 text_color="#dce7f8",
@@ -1459,6 +1650,86 @@ class KeyHoldApp:
         self.load_selected_profile_into_editor()
         self.update_macro_status()
 
+    def build_settings_tab(self, tab) -> None:
+        self.add_tab_heading(
+            tab,
+            "Settings",
+            "Switch the full InputLab colorway and keep the selected theme across restarts.",
+        )
+
+        theme_section = self.build_section_frame(tab)
+        theme_section.pack(fill="x", padx=20, pady=(0, 16))
+
+        ctk.CTkLabel(
+            theme_section,
+            text="Theme preset",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            text_color=THEME["text"],
+        ).pack(anchor="w", padx=18, pady=(16, 6))
+
+        ctk.CTkLabel(
+            theme_section,
+            text="Each preset swaps the entire color system: accents, active states, cards, borders, and live progress surfaces.",
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color=THEME["muted"],
+            wraplength=760,
+            justify="left",
+        ).pack(anchor="w", padx=18, pady=(0, 12))
+
+        self.theme_buttons_frame = ctk.CTkFrame(theme_section, fg_color=THEME["panel"])
+        self.theme_buttons_frame.pack(fill="x", padx=18, pady=(0, 16))
+
+        self.theme_preset_buttons = {}
+        for theme_name in THEME_PRESETS:
+            button = ctk.CTkButton(
+                self.theme_buttons_frame,
+                text=theme_name,
+                height=42,
+                corner_radius=14,
+                fg_color=THEME["green_deep"] if theme_name == self.theme_name else THEME["field"],
+                hover_color=THEME["green"] if theme_name == self.theme_name else THEME["field_hover"],
+                text_color=THEME["text"] if theme_name == self.theme_name else "#dce7f8",
+                font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+                command=lambda value=theme_name: self.change_theme(value),
+            )
+            button.pack(fill="x", pady=5)
+            self.theme_preset_buttons[theme_name] = button
+
+        preview_section = self.build_section_frame(tab)
+        preview_section.pack(fill="x", padx=20, pady=(0, 16))
+
+        ctk.CTkLabel(
+            preview_section,
+            text="Included presets",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            text_color=THEME["text"],
+        ).pack(anchor="w", padx=18, pady=(16, 10))
+
+        for title, detail in (
+            ("Graphite + Electric Lime", "Dark graphite shell with sharp lime action states and a fast tool feel."),
+            ("Midnight Navy + Amber", "Deep navy surfaces with amber highlights and a more premium dashboard tone."),
+            ("Carbon + Ice Blue", "Cold carbon panels with icy blue accents and cleaner technical contrast."),
+            ("Gunmetal + Redline", "Heavy gunmetal cards with redline accents for a more aggressive racing look."),
+            ("Obsidian + Emerald", "Black-green control surface with darker emerald emphasis on active modules."),
+            ("Slate + Violet", "Slate-gray framework with restrained violet accents for a more modern UI mood."),
+        ):
+            item = ctk.CTkFrame(preview_section, fg_color=THEME["panel_high"], corner_radius=14)
+            item.pack(fill="x", padx=18, pady=5)
+            ctk.CTkLabel(
+                item,
+                text=title,
+                font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+                text_color=THEME["text"],
+            ).pack(anchor="w", padx=14, pady=(10, 2))
+            ctk.CTkLabel(
+                item,
+                text=detail,
+                font=ctk.CTkFont(family="Segoe UI", size=12),
+                text_color=THEME["muted"],
+                wraplength=760,
+                justify="left",
+            ).pack(anchor="w", padx=14, pady=(0, 10))
+
     def render_macro_steps(self, steps: list[dict]) -> None:
         if not hasattr(self, "macro_steps_rows_frame"):
             return
@@ -1861,6 +2132,17 @@ class KeyHoldApp:
             f"Press {profile['hotkey'].upper()} to start or stop the {profile['name']} controller macro."
         )
         self.update_activity_indicators()
+
+    def change_theme(self, theme_name: str) -> None:
+        if theme_name == self.theme_name:
+            return
+
+        self.sync_config_from_ui()
+        self.apply_theme(theme_name)
+        self.save_config()
+        self.build_ui()
+        self.show_view("settings")
+        self.set_macro_status("Theme changed", f"Applied {theme_name}.")
 
     def on_profile_tab_selected(self, selected_name: str) -> None:
         if not self.profile_editor_ready:
@@ -2413,6 +2695,8 @@ class KeyHoldApp:
             macro_color,
             "last_macro_active",
         )
+        if hasattr(self, "settings_activity_indicator"):
+            self.settings_activity_indicator.configure(fg_color=THEME["border"])
         if hasattr(self, "live_progress_accent"):
             self.live_progress_accent.configure(fg_color=THEME["green"] if macro_is_running else THEME["blue"])
             self.update_live_progress_animation(macro_is_running)
@@ -2759,6 +3043,7 @@ class KeyHoldApp:
             "Profiles exported": "#1d4ed8",
             "Step added": "#1d4ed8",
             "Step removed": THEME["field"],
+            "Theme changed": "#1d4ed8",
             "Driver needed": "#7c2d12",
             "Invalid hotkey": "#7c2d12",
             "Invalid macro": "#7c2d12",
