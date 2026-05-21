@@ -1,5 +1,5 @@
 #define MyAppName "InputLab"
-#define MyAppVersion "1.0.4"
+#define MyAppVersion "1.0.5"
 #define MyAppPublisher "InputLab"
 #define MyAppExeName "InputLab.exe"
 

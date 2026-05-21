@@ -19,7 +19,7 @@ except ImportError:
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.4"
+APP_VERSION = "1.0.5"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -558,13 +558,13 @@ class KeyHoldApp:
         status_card.pack(fill="x", padx=20, pady=(20, 16))
 
         macro_body = ctk.CTkFrame(tab, fg_color="transparent")
-        macro_body.pack(fill="both", expand=True, padx=20, pady=(0, 16))
+        macro_body.pack(fill="x", padx=20, pady=(0, 16), anchor="w")
 
         macro_config_column = ctk.CTkFrame(macro_body, fg_color="transparent")
-        macro_config_column.pack(side="left", fill="both", expand=True, padx=(0, 6))
+        macro_config_column.pack(side="left", fill="y", padx=(0, 12), anchor="n")
 
         progress_column = ctk.CTkFrame(macro_body, fg_color="transparent", width=300)
-        progress_column.pack(side="left", fill="y")
+        progress_column.pack(side="left", fill="y", anchor="n")
         progress_column.pack_propagate(False)
 
         setup = self.build_section_frame(macro_config_column)
