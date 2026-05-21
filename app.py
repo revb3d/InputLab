@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -808,9 +808,8 @@ class KeyHoldApp:
         macro_body = ctk.CTkFrame(tab, fg_color="transparent")
         macro_body.pack(padx=20, pady=(0, 16), anchor="w")
 
-        macro_config_column = ctk.CTkFrame(macro_body, fg_color="transparent", width=920)
+        macro_config_column = ctk.CTkFrame(macro_body, fg_color="transparent")
         macro_config_column.pack(side="left", fill="y", padx=(0, 12), anchor="n")
-        macro_config_column.pack_propagate(False)
 
         progress_column = ctk.CTkFrame(macro_body, fg_color="transparent", width=300)
         progress_column.pack(side="left", fill="y", anchor="n")
@@ -850,7 +849,7 @@ class KeyHoldApp:
             text="Each step presses one virtual Xbox button, waits, releases it, then waits again before the next step. After the full sequence finishes, the macro waits for the loop interval before starting over.",
             font=ctk.CTkFont(family="Segoe UI", size=12),
             text_color="#7f8ca3",
-            wraplength=820,
+            wraplength=560,
             justify="left",
         )
         macro_hint.pack(anchor="w", padx=18, pady=(0, 10))
@@ -1038,7 +1037,7 @@ class KeyHoldApp:
             ),
             font=ctk.CTkFont(family="Segoe UI", size=12),
             text_color="#718198",
-            wraplength=620,
+            wraplength=560,
             justify="left",
         )
         driver_note.pack(anchor="w", padx=24, pady=(6, 0))

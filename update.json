@@ -1,5 +1,5 @@
 {
-  "version": "1.1.1",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.1.1/InputLabSetup.exe",
-  "notes": "Added Duplicate Profile and Reset Profile controls for controller macro profiles."
+  "version": "1.1.2",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.1.2/InputLabSetup.exe",
+  "notes": "Fixed the controller macro layout so inputs and step rows are no longer clipped, while keeping Live progress close to the editor."
 }
