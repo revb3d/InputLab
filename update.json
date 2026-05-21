@@ -1,5 +1,5 @@
 {
-  "version": "1.0.10",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.0.10/InputLabSetup.exe",
-  "notes": "Made update checks bypass stale manifest caching so future in-app updates detect the newest release more reliably."
+  "version": "1.0.11",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.0.11/InputLabSetup.exe",
+  "notes": "Moved InputLab settings to a per-user app-data folder so the installed app reliably loads and saves your controller macro defaults and config."
 }

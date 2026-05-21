@@ -20,8 +20,10 @@ except ImportError:
 
 
 APP_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.10"
+USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
+CONFIG_PATH = USER_DATA_DIR / "config.json"
+LEGACY_CONFIG_PATH = APP_DIR / "config.json"
+APP_VERSION = "1.0.11"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -138,13 +140,35 @@ class KeyHoldApp:
         config = DEFAULT_CONFIG.copy()
         config["macro_steps"] = [step.copy() for step in DEFAULT_CONFIG["macro_steps"]]
 
+        self.ensure_user_data_dir()
+
         if not CONFIG_PATH.exists():
+            legacy_config = self.load_config_file(LEGACY_CONFIG_PATH)
+            if legacy_config is not None:
+                self.write_config_payload(legacy_config)
+                return legacy_config
+
+            self.write_config_payload(config)
             return config
 
+        loaded_config = self.load_config_file(CONFIG_PATH)
+        if loaded_config is not None:
+            return loaded_config
+
+        self.write_config_payload(config)
+        return config
+
+    def load_config_file(self, path: Path) -> dict | None:
+        if not path.exists():
+            return None
+
         try:
-            raw_data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            raw_data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
-            return config
+            return None
+
+        config = DEFAULT_CONFIG.copy()
+        config["macro_steps"] = [step.copy() for step in DEFAULT_CONFIG["macro_steps"]]
 
         config["toggle_hotkey"] = str(raw_data.get("toggle_hotkey", config["toggle_hotkey"])).lower()
         config["target_key"] = str(raw_data.get("target_key", config["target_key"])).lower()
@@ -167,6 +191,13 @@ class KeyHoldApp:
         config["macro_steps"] = normalized_steps
         return config
 
+    def ensure_user_data_dir(self) -> None:
+        USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    def write_config_payload(self, payload: dict) -> None:
+        self.ensure_user_data_dir()
+        CONFIG_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
     def save_config(self) -> None:
         self.sync_config_from_ui()
         payload = {
@@ -176,7 +207,7 @@ class KeyHoldApp:
             "macro_interval_seconds": self.macro_interval_seconds,
             "macro_steps": self.macro_steps,
         }
-        CONFIG_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        self.write_config_payload(payload)
 
     def sync_config_from_ui(self) -> None:
         if hasattr(self, "hotkey_entry"):
