@@ -1,4 +1,4 @@
-# Key Hold Toggle
+# InputLab
 
 A small Windows desktop app that lets you bind a global hotkey to toggle another key into a held-down state.
 

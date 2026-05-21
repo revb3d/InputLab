@@ -17,7 +17,7 @@ except ImportError:
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 BUTTON_OPTIONS = [
     "A",
@@ -58,7 +58,6 @@ DEFAULT_CONFIG = {
     "target_key": "m",
     "macro_hotkey": "f3",
     "macro_interval_seconds": 75,
-    "update_manifest_url": DEFAULT_UPDATE_MANIFEST_URL,
     "macro_steps": [
         {"button": "A", "hold_ms": 90, "delay_ms": 120},
         {"button": "", "hold_ms": 90, "delay_ms": 120},
@@ -74,7 +73,7 @@ class KeyHoldApp:
         ctk.set_default_color_theme("dark-blue")
 
         self.root = ctk.CTk()
-        self.root.title("Key Hold Toggle")
+        self.root.title("InputLab")
         self.root.geometry("720x560")
         self.root.minsize(720, 560)
         self.root.configure(fg_color="#0b0f14")
@@ -84,7 +83,7 @@ class KeyHoldApp:
         self.target_key = self.config["target_key"]
         self.macro_hotkey = self.config["macro_hotkey"]
         self.macro_interval_seconds = self.config["macro_interval_seconds"]
-        self.update_manifest_url = self.config["update_manifest_url"]
+        self.update_manifest_url = DEFAULT_UPDATE_MANIFEST_URL
         self.macro_steps = self.config["macro_steps"]
 
         self.is_holding = False
@@ -117,6 +116,7 @@ class KeyHoldApp:
         self.build_ui()
         self.register_key_hold_hotkey(self.toggle_hotkey)
         self.register_macro_hotkey(self.macro_hotkey)
+        self.root.after(1200, self.auto_check_for_updates)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
@@ -139,10 +139,6 @@ class KeyHoldApp:
             raw_data.get("macro_interval_seconds"),
             config["macro_interval_seconds"],
         )
-        config["update_manifest_url"] = str(
-            raw_data.get("update_manifest_url", config["update_manifest_url"])
-        ).strip()
-
         loaded_steps = raw_data.get("macro_steps", [])
         normalized_steps = []
         for index in range(4):
@@ -164,7 +160,6 @@ class KeyHoldApp:
             "target_key": self.target_key,
             "macro_hotkey": self.macro_hotkey,
             "macro_interval_seconds": self.macro_interval_seconds,
-            "update_manifest_url": self.update_manifest_url,
             "macro_steps": self.macro_steps,
         }
         CONFIG_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -193,10 +188,6 @@ class KeyHoldApp:
                     self.macro_interval_seconds,
                 )
 
-        if hasattr(self, "update_manifest_entry"):
-            typed_manifest_url = self.update_manifest_entry.get().strip()
-            self.update_manifest_url = typed_manifest_url
-
         if hasattr(self, "macro_step_widgets"):
             self.macro_steps = self.collect_macro_steps(include_blank_steps=True)
 
@@ -215,7 +206,7 @@ class KeyHoldApp:
 
         title = ctk.CTkLabel(
             header,
-            text="Key Hold Toggle",
+            text="InputLab",
             font=ctk.CTkFont(family="Segoe UI Semibold", size=28, weight="bold"),
             text_color="#f5f7fb",
         )
@@ -510,32 +501,28 @@ class KeyHoldApp:
 
         ctk.CTkLabel(
             update_section,
-            text="Update manifest URL",
+            text="Automatic updates",
             font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
             text_color="#e7edf7",
         ).pack(anchor="w", padx=18, pady=(16, 6))
 
         ctk.CTkLabel(
             update_section,
-            text="Host a small JSON manifest online so installed copies can compare versions and open the newest installer.",
+            text="This build is locked to the official InputLab update feed and checks automatically after launch.",
             font=ctk.CTkFont(family="Segoe UI", size=12),
             text_color="#7f8ca3",
             wraplength=620,
             justify="left",
         ).pack(anchor="w", padx=18, pady=(0, 10))
 
-        self.update_manifest_entry = ctk.CTkEntry(
+        ctk.CTkLabel(
             update_section,
-            height=42,
-            corner_radius=14,
-            border_color="#253247",
-            fg_color="#121926",
-            text_color="#f8fbff",
-            placeholder_text="https://example.com/keyholdtoggle-update.json",
-            font=ctk.CTkFont(family="Segoe UI", size=14),
-        )
-        self.update_manifest_entry.pack(fill="x", padx=18, pady=(0, 16))
-        self.update_manifest_entry.insert(0, self.update_manifest_url)
+            text=DEFAULT_UPDATE_MANIFEST_URL,
+            font=ctk.CTkFont(family="Consolas", size=12),
+            text_color="#9fb2cf",
+            wraplength=620,
+            justify="left",
+        ).pack(anchor="w", padx=18, pady=(0, 16))
 
         self.key_status_badge = status_card.badge
         self.update_key_status()
@@ -552,9 +539,9 @@ class KeyHoldApp:
         macro_body.pack(fill="both", expand=True, padx=20, pady=(0, 16))
 
         macro_config_column = ctk.CTkFrame(macro_body, fg_color="transparent")
-        macro_config_column.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        macro_config_column.pack(side="left", fill="both", expand=True, padx=(0, 6))
 
-        progress_column = ctk.CTkFrame(macro_body, fg_color="transparent", width=260)
+        progress_column = ctk.CTkFrame(macro_body, fg_color="transparent", width=300)
         progress_column.pack(side="left", fill="y")
         progress_column.pack_propagate(False)
 
@@ -566,12 +553,16 @@ class KeyHoldApp:
             "Macro hotkey",
             "Example: f3, ctrl+shift+m",
             self.macro_hotkey,
+            expand_entry=False,
+            entry_width=300,
         )
         self.macro_interval_entry = self.add_labeled_entry(
             setup,
             "Loop interval",
             "Example: 75",
             str(self.macro_interval_seconds),
+            expand_entry=False,
+            entry_width=300,
         )
 
         macro_hint = ctk.CTkLabel(
@@ -816,7 +807,15 @@ class KeyHoldApp:
             border_width=1,
         )
 
-    def add_labeled_entry(self, parent, label_text: str, hint_text: str, value: str) -> ctk.CTkEntry:
+    def add_labeled_entry(
+        self,
+        parent,
+        label_text: str,
+        hint_text: str,
+        value: str,
+        expand_entry: bool = True,
+        entry_width: int | None = None,
+    ) -> ctk.CTkEntry:
         row = ctk.CTkFrame(parent, fg_color="transparent")
         row.pack(fill="x", padx=18, pady=14)
 
@@ -832,6 +831,7 @@ class KeyHoldApp:
 
         entry = ctk.CTkEntry(
             row,
+            width=entry_width,
             height=42,
             corner_radius=14,
             border_color="#253247",
@@ -840,7 +840,7 @@ class KeyHoldApp:
             placeholder_text=hint_text,
             font=ctk.CTkFont(family="Segoe UI", size=14),
         )
-        entry.pack(side="left", fill="x", expand=True)
+        entry.pack(side="left", fill="x" if expand_entry else "none", expand=expand_entry)
         entry.insert(0, value)
         return entry
 
@@ -1294,14 +1294,14 @@ class KeyHoldApp:
         self.open_update_button.configure(state="normal" if has_download else "disabled")
 
     def check_for_updates(self) -> None:
-        self.sync_config_from_ui()
         if self.update_check_in_progress:
             return
 
+        self.update_manifest_url = DEFAULT_UPDATE_MANIFEST_URL
         if not self.update_manifest_url:
             self.set_update_status(
                 f"Version {APP_VERSION}",
-                "Add a manifest URL in the Keyboard Hold section first.",
+                "No update feed is configured for this build.",
             )
             return
 
@@ -1310,6 +1310,10 @@ class KeyHoldApp:
         self.set_update_status(f"Version {APP_VERSION}", "Checking for updates...")
 
         threading.Thread(target=self.run_update_check, daemon=True).start()
+
+    def auto_check_for_updates(self) -> None:
+        if not self.update_check_in_progress:
+            self.check_for_updates()
 
     def run_update_check(self) -> None:
         try:

@@ -1,6 +1,6 @@
-#define MyAppName "Key Hold Toggle"
-#define MyAppVersion "1.0.1"
-#define MyAppPublisher "Key Hold Toggle"
+#define MyAppName "InputLab"
+#define MyAppVersion "1.0.2"
+#define MyAppPublisher "InputLab"
 #define MyAppExeName "KeyHoldToggle.exe"
 
 [Setup]
