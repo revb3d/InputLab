@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.1.5"
+APP_VERSION = "1.1.6"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -386,14 +386,15 @@ class KeyHoldApp:
 
         self.body_scroll = ctk.CTkScrollableFrame(
             outer,
-            fg_color="transparent",
+            fg_color="#10161f",
             corner_radius=0,
             scrollbar_button_color="#182131",
             scrollbar_button_hover_color="#273347",
         )
         self.body_scroll.pack(fill="both", expand=True, padx=22, pady=(0, 22))
+        self.fix_scroll_canvas_background(self.body_scroll, "#10161f")
 
-        body = ctk.CTkFrame(self.body_scroll, fg_color="transparent")
+        body = ctk.CTkFrame(self.body_scroll, fg_color="#10161f")
         body.pack(fill="both", expand=True)
 
         sidebar = ctk.CTkFrame(
@@ -546,6 +547,13 @@ class KeyHoldApp:
         self.build_macro_tab(self.macro_view)
         self.show_view("keyboard")
         self.update_activity_indicators()
+
+    @staticmethod
+    def fix_scroll_canvas_background(scrollable_frame, color: str) -> None:
+        # Solid canvas backgrounds prevent CustomTkinter transparency trails while scrolling on Windows.
+        canvas = getattr(scrollable_frame, "_parent_canvas", None)
+        if canvas is not None:
+            canvas.configure(bg=color, highlightthickness=0)
 
     def show_view(self, view_name: str) -> None:
         self.current_view = view_name
@@ -1430,26 +1438,51 @@ class KeyHoldApp:
             self.set_macro_status("Import failed", f"Could not read that profile file: {exc}")
             return
 
-        raw_profiles = payload.get("macro_profiles", [])
+        if isinstance(payload, list):
+            raw_profiles = payload
+        elif isinstance(payload.get("macro_profiles"), list):
+            raw_profiles = payload.get("macro_profiles", [])
+        else:
+            raw_profiles = [payload]
+
         imported_profiles = []
         for index, raw_profile in enumerate(raw_profiles, start=1):
             normalized = self.normalize_macro_profile(raw_profile, index)
             if normalized is not None:
                 normalized["id"] = uuid.uuid4().hex
+                normalized["name"] = self.unique_profile_name(normalized["name"])
+
+                imported_hotkey = normalized["hotkey"].strip().lower()
+                try:
+                    keyboard.parse_hotkey(imported_hotkey)
+                except ValueError:
+                    imported_hotkey = ""
+
+                used_hotkeys = {
+                    profile["hotkey"]
+                    for profile in self.macro_profiles
+                    if profile["hotkey"]
+                }
+                if not imported_hotkey or imported_hotkey in used_hotkeys:
+                    imported_hotkey = self.next_available_macro_hotkey()
+                normalized["hotkey"] = imported_hotkey
+
+                self.macro_profiles.append(normalized)
                 imported_profiles.append(normalized)
 
         if not imported_profiles:
             self.set_macro_status("Import failed", "That file does not contain any usable controller macro profiles.")
             return
 
-        self.stop_macro()
-        self.macro_profiles = imported_profiles
         self.selected_macro_profile_id = imported_profiles[0]["id"]
         self.refresh_profile_tabs()
         self.load_selected_profile_into_editor()
         self.save_config()
         self.register_macro_hotkeys()
-        self.set_macro_status("Profiles imported", f"Loaded {len(imported_profiles)} controller macro profiles.")
+        self.set_macro_status(
+            "Profiles imported",
+            f"Added {len(imported_profiles)} controller macro profile(s) without removing your existing profiles.",
+        )
 
     def collect_macro_steps(self, include_blank_steps: bool = False):
         parsed_steps = []
