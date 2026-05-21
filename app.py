@@ -20,7 +20,7 @@ except ImportError:
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.6"
+APP_VERSION = "1.0.7"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -60,14 +60,14 @@ BUTTON_ENUM_NAMES = {
 }
 DEFAULT_CONFIG = {
     "toggle_hotkey": "f2",
-    "target_key": "m",
+    "target_key": "w",
     "macro_hotkey": "f3",
-    "macro_interval_seconds": 75,
+    "macro_interval_seconds": 78,
     "macro_steps": [
-        {"button": "A", "hold_ms": 90, "delay_ms": 120},
-        {"button": "", "hold_ms": 90, "delay_ms": 120},
-        {"button": "", "hold_ms": 90, "delay_ms": 120},
-        {"button": "", "hold_ms": 90, "delay_ms": 120},
+        {"button": "X", "hold_ms": 100, "delay_ms": 1000},
+        {"button": "A", "hold_ms": 90, "delay_ms": 13000},
+        {"button": "A", "hold_ms": 90, "delay_ms": 1000},
+        {"button": "A", "hold_ms": 90, "delay_ms": 1000},
     ],
 }
 

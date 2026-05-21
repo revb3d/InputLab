@@ -1,5 +1,5 @@
 {
-  "version": "1.0.6",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.0.6/InputLabSetup.exe",
-  "notes": "Added a real in-app updater that downloads the installer and launches it automatically instead of only opening the release download."
+  "version": "1.0.7",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.0.7/InputLabSetup.exe",
+  "notes": "Aligned the packaged default keyboard and controller macro values with the current app setup so fresh installs open with the same interval, buttons, holds, and delays."
 }
