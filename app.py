@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.12"
+APP_VERSION = "1.2.13"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -959,33 +959,6 @@ class KeyHoldApp:
         )
         self.macro_nav_button.pack(side="left", fill="x", expand=True)
 
-        self.settings_nav_row = ctk.CTkFrame(sidebar, fg_color="transparent")
-        self.settings_nav_row.pack(fill="x", padx=14, pady=(10, 0))
-
-        self.settings_activity_indicator = ctk.CTkLabel(
-            self.settings_nav_row,
-            text="",
-            width=12,
-            height=12,
-            corner_radius=6,
-            fg_color=THEME["border"],
-        )
-        self.settings_activity_indicator.pack(side="left", padx=(2, 10))
-
-        self.settings_nav_button = ctk.CTkButton(
-            self.settings_nav_row,
-            text="Settings",
-            height=48,
-            corner_radius=16,
-            anchor="w",
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color="#dce7f8",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
-            command=lambda: self.show_view("settings"),
-        )
-        self.settings_nav_button.pack(side="left", fill="x", expand=True)
-
         self.add_accent_line(sidebar, THEME["blue"], height=3, padx=18, pady=(18, 12))
 
         update_card = ctk.CTkFrame(
@@ -1048,6 +1021,30 @@ class KeyHoldApp:
             state="disabled",
         )
         self.open_update_button.pack(fill="x", padx=14, pady=(0, 14))
+
+        ctk.CTkLabel(
+            sidebar,
+            text="App",
+            font=ctk.CTkFont(family="Segoe UI", size=11),
+            text_color=THEME["faint"],
+        ).pack(anchor="w", padx=18, pady=(0, 8))
+
+        self.settings_nav_row = ctk.CTkFrame(sidebar, fg_color="transparent")
+        self.settings_nav_row.pack(fill="x", padx=14, pady=(0, 14))
+
+        self.settings_nav_button = ctk.CTkButton(
+            self.settings_nav_row,
+            text="Settings",
+            height=48,
+            corner_radius=16,
+            anchor="w",
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color="#dce7f8",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            command=lambda: self.show_view("settings"),
+        )
+        self.settings_nav_button.pack(fill="x", expand=True)
 
         self.content_area = ctk.CTkFrame(
             body,
@@ -2846,8 +2843,6 @@ class KeyHoldApp:
             macro_color,
             "last_macro_active",
         )
-        if hasattr(self, "settings_activity_indicator"):
-            self.settings_activity_indicator.configure(fg_color=THEME["border"])
         if hasattr(self, "live_progress_accent"):
             self.live_progress_accent.configure(fg_color=THEME["green"] if macro_is_running else THEME["blue"])
             self.update_live_progress_animation(macro_is_running)

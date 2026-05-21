@@ -1,5 +1,5 @@
 {
-  "version": "1.2.12",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.12/InputLabSetup.exe",
-  "notes": "Fixed the startup view initialization so the first selected section renders immediately instead of showing an empty content panel until you click another section."
+  "version": "1.2.13",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.13/InputLabSetup.exe",
+  "notes": "Moved Settings out of the live modules group into its own app section below updates and removed the extra left-side activity dot."
 }
