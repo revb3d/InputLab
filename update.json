@@ -1,5 +1,5 @@
 {
-  "version": "1.2.16",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.16/InputLabSetup.exe",
-  "notes": "Darkened the primary gradient button fill itself so the control stays visually dark instead of rendering as a bright pastel gradient."
+  "version": "1.2.17",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.17/InputLabSetup.exe",
+  "notes": "Forced the main window to reset all opacity and transparency flags on startup so InputLab cannot open in a dimmed or semi-transparent state."
 }

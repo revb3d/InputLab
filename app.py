@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.16"
+APP_VERSION = "1.2.17"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -509,6 +509,7 @@ class KeyHoldApp:
         self.root.title("InputLab")
         self.root.geometry("1320x820")
         self.root.minsize(1100, 720)
+        self.ensure_window_opaque()
 
         self.config = self.load_config()
         self.theme_name = self.config["theme_name"]
@@ -2219,12 +2220,35 @@ class KeyHoldApp:
     def show_centered_window(self) -> None:
         self.update_startup_status("Finalizing layout...")
         self.center_window()
+        self.ensure_window_opaque()
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
         if self.startup_splash is not None:
+            try:
+                self.startup_splash.attributes("-topmost", False)
+            except Exception:
+                pass
             self.startup_splash.destroy()
             self.startup_splash = None
+        self.root.after(60, self.ensure_window_opaque)
+        self.root.after(220, self.ensure_window_opaque)
+
+    def ensure_window_opaque(self) -> None:
+        try:
+            self.root.attributes("-alpha", 1.0)
+        except Exception:
+            pass
+
+        try:
+            self.root.wm_attributes("-alpha", 1.0)
+        except Exception:
+            pass
+
+        try:
+            self.root.attributes("-transparentcolor", "")
+        except Exception:
+            pass
 
     def register_key_hold_hotkey(self, hotkey: str) -> None:
         if self.key_hold_hotkey_handle is not None:
