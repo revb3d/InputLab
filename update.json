@@ -1,5 +1,5 @@
 {
-  "version": "1.1.6",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.1.6/InputLabSetup.exe",
-  "notes": "Profile imports now add new controller macro profiles instead of replacing your existing profiles. The scrolling layer also uses a solid canvas background to reduce visual echo while scrolling."
+  "version": "1.1.7",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.1.7/InputLabSetup.exe",
+  "notes": "Replaced the CustomTkinter scrollable frame with a plain solid-background canvas scroller to fix text echo/artifacting while scrolling."
 }

@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.1.6"
+APP_VERSION = "1.1.7"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -384,17 +384,44 @@ class KeyHoldApp:
         )
         subtitle.pack(anchor="w", pady=(6, 0))
 
-        self.body_scroll = ctk.CTkScrollableFrame(
+        scroll_host = ctk.CTkFrame(
             outer,
             fg_color="#10161f",
             corner_radius=0,
-            scrollbar_button_color="#182131",
-            scrollbar_button_hover_color="#273347",
         )
-        self.body_scroll.pack(fill="both", expand=True, padx=22, pady=(0, 22))
-        self.fix_scroll_canvas_background(self.body_scroll, "#10161f")
+        scroll_host.pack(fill="both", expand=True, padx=22, pady=(0, 22))
 
-        body = ctk.CTkFrame(self.body_scroll, fg_color="#10161f")
+        self.body_canvas = tk.Canvas(
+            scroll_host,
+            bg="#10161f",
+            bd=0,
+            highlightthickness=0,
+            relief="flat",
+            insertborderwidth=0,
+        )
+        self.body_canvas.pack(side="left", fill="both", expand=True)
+
+        self.body_scrollbar = ctk.CTkScrollbar(
+            scroll_host,
+            orientation="vertical",
+            command=self.body_canvas.yview,
+            button_color="#182131",
+            button_hover_color="#273347",
+        )
+        self.body_scrollbar.pack(side="right", fill="y", padx=(8, 0))
+        self.body_canvas.configure(yscrollcommand=self.body_scrollbar.set)
+
+        self.body_canvas_frame = tk.Frame(self.body_canvas, bg="#10161f", bd=0, highlightthickness=0)
+        self.body_canvas_window = self.body_canvas.create_window(
+            (0, 0),
+            window=self.body_canvas_frame,
+            anchor="nw",
+        )
+        self.body_canvas_frame.bind("<Configure>", self.on_body_scroll_frame_configure)
+        self.body_canvas.bind("<Configure>", self.on_body_canvas_configure)
+        self.root.bind_all("<MouseWheel>", self.on_body_mousewheel, add="+")
+
+        body = ctk.CTkFrame(self.body_canvas_frame, fg_color="#10161f")
         body.pack(fill="both", expand=True)
 
         sidebar = ctk.CTkFrame(
@@ -548,12 +575,32 @@ class KeyHoldApp:
         self.show_view("keyboard")
         self.update_activity_indicators()
 
+    def on_body_scroll_frame_configure(self, _event=None) -> None:
+        self.body_canvas.configure(scrollregion=self.body_canvas.bbox("all"))
+
+    def on_body_canvas_configure(self, event) -> None:
+        self.body_canvas.itemconfigure(self.body_canvas_window, width=event.width)
+
+    def on_body_mousewheel(self, event) -> None:
+        if not self.pointer_is_over_widget(self.body_canvas):
+            return
+
+        bbox = self.body_canvas.bbox("all")
+        if bbox is None or bbox[3] <= self.body_canvas.winfo_height():
+            return
+
+        self.body_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
     @staticmethod
-    def fix_scroll_canvas_background(scrollable_frame, color: str) -> None:
-        # Solid canvas backgrounds prevent CustomTkinter transparency trails while scrolling on Windows.
-        canvas = getattr(scrollable_frame, "_parent_canvas", None)
-        if canvas is not None:
-            canvas.configure(bg=color, highlightthickness=0)
+    def pointer_is_over_widget(widget) -> bool:
+        pointer_x = widget.winfo_pointerx()
+        pointer_y = widget.winfo_pointery()
+        widget_x = widget.winfo_rootx()
+        widget_y = widget.winfo_rooty()
+        return (
+            widget_x <= pointer_x <= widget_x + widget.winfo_width()
+            and widget_y <= pointer_y <= widget_y + widget.winfo_height()
+        )
 
     def show_view(self, view_name: str) -> None:
         self.current_view = view_name
