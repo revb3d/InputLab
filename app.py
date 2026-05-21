@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -325,8 +325,20 @@ class KeyHoldApp:
         return build_macro_profile(
             uuid.uuid4().hex,
             name or f"Profile {profile_number}",
-            hotkey=f"f{min(12, 2 + profile_number)}",
+            hotkey=self.next_available_macro_hotkey(),
         )
+
+    def next_available_macro_hotkey(self, exclude_profile_id: str | None = None) -> str:
+        used_hotkeys = {
+            profile["hotkey"]
+            for profile in self.macro_profiles
+            if profile["id"] != exclude_profile_id
+        }
+        for number in range(3, 13):
+            hotkey = f"f{number}"
+            if hotkey not in used_hotkeys:
+                return hotkey
+        return ""
 
     def build_ui(self) -> None:
         outer = ctk.CTkFrame(
@@ -727,6 +739,32 @@ class KeyHoldApp:
             command=self.add_macro_profile,
         )
         self.add_profile_button.pack(side="left")
+
+        self.duplicate_profile_button = ctk.CTkButton(
+            profile_actions,
+            text="Duplicate Profile",
+            height=38,
+            corner_radius=12,
+            fg_color="#182131",
+            hover_color="#273347",
+            text_color="#f8fbff",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.duplicate_macro_profile,
+        )
+        self.duplicate_profile_button.pack(side="left", padx=(10, 0))
+
+        self.reset_profile_button = ctk.CTkButton(
+            profile_actions,
+            text="Reset Profile",
+            height=38,
+            corner_radius=12,
+            fg_color="#182131",
+            hover_color="#273347",
+            text_color="#f8fbff",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.reset_macro_profile,
+        )
+        self.reset_profile_button.pack(side="left", padx=(10, 0))
 
         self.delete_profile_button = ctk.CTkButton(
             profile_actions,
@@ -1290,6 +1328,56 @@ class KeyHoldApp:
         self.save_config()
         self.register_macro_hotkeys()
         self.set_macro_status("Profile added", f"{new_profile['name']} is ready. Give it a hotkey and steps, then apply it.")
+
+    def duplicate_macro_profile(self) -> None:
+        self.sync_config_from_ui()
+        current_profile = self.get_selected_profile()
+        duplicate_name = self.unique_profile_name(f"{current_profile['name']} Copy")
+        duplicate_profile = build_macro_profile(
+            uuid.uuid4().hex,
+            duplicate_name,
+            hotkey=self.next_available_macro_hotkey(),
+            interval_seconds=current_profile["interval_seconds"],
+            steps=current_profile["steps"],
+        )
+
+        self.macro_profiles.append(duplicate_profile)
+        self.selected_macro_profile_id = duplicate_profile["id"]
+        self.refresh_profile_tabs()
+        self.load_selected_profile_into_editor()
+        self.save_config()
+        self.register_macro_hotkeys()
+        self.set_macro_status(
+            "Profile duplicated",
+            f"Duplicated {current_profile['name']} as {duplicate_profile['name']}.",
+        )
+
+    def reset_macro_profile(self) -> None:
+        current_profile = self.get_selected_profile()
+        if self.active_macro_profile_id == current_profile["id"]:
+            self.stop_macro()
+
+        current_profile["hotkey"] = self.next_available_macro_hotkey(current_profile["id"]) or current_profile["hotkey"]
+        current_profile["interval_seconds"] = 78
+        current_profile["steps"] = default_macro_steps()
+        self.load_selected_profile_into_editor()
+        self.save_config()
+        self.register_macro_hotkeys()
+        self.reset_macro_progress()
+        self.set_macro_status(
+            "Profile reset",
+            f"{current_profile['name']} was reset to the built-in controller defaults.",
+        )
+
+    def unique_profile_name(self, base_name: str) -> str:
+        existing_names = {profile["name"].lower() for profile in self.macro_profiles}
+        if base_name.lower() not in existing_names:
+            return base_name
+
+        counter = 2
+        while f"{base_name} {counter}".lower() in existing_names:
+            counter += 1
+        return f"{base_name} {counter}"
 
     def delete_macro_profile(self) -> None:
         if len(self.macro_profiles) <= 1:
@@ -1992,6 +2080,8 @@ class KeyHoldApp:
             "Running": "#14532d",
             "Macro saved": "#1d4ed8",
             "Profile added": "#1d4ed8",
+            "Profile duplicated": "#1d4ed8",
+            "Profile reset": "#1d4ed8",
             "Profiles imported": "#1d4ed8",
             "Profiles exported": "#1d4ed8",
             "Driver needed": "#7c2d12",
