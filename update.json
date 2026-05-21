@@ -1,5 +1,5 @@
 {
-  "version": "1.2.13",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.13/InputLabSetup.exe",
-  "notes": "Moved Settings out of the live modules group into its own app section below updates and removed the extra left-side activity dot."
+  "version": "1.2.14",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.14/InputLabSetup.exe",
+  "notes": "Improved the startup and section loading screens, darkened the gradient hover sweep, and widened Apply Keyboard Mapping so the label no longer clips."
 }

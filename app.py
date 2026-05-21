@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.13"
+APP_VERSION = "1.2.14"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -211,7 +211,7 @@ class GradientButton(tk.Canvas):
         self.current_colors = colors
         self.animation_after_id = None
         self.sheen_after_id = None
-        self.sheen_x = -48
+        self.sheen_x = -72
         self.is_hovering = False
         self.is_pressed = False
         self.radius = min(self.corner_radius, self.button_height // 2, self.button_width // 2)
@@ -306,7 +306,7 @@ class GradientButton(tk.Canvas):
         self.create_line(width, radius + 4, width, height - radius, fill=shadow)
 
     def draw_sheen(self) -> None:
-        band_width = 58
+        band_width = 72
         center = band_width / 2
         gradient = self.get_gradient(self.current_colors)
         for offset in range(band_width):
@@ -315,27 +315,27 @@ class GradientButton(tk.Canvas):
                 continue
             alpha = max(0, 1 - abs(offset - center) / center)
             alpha = alpha * alpha
-            color = self.mix_hex(gradient[x], "#ffffff", alpha * 0.34)
+            color = self.mix_hex(gradient[x], THEME["shell_high"], alpha * 0.42)
             top, bottom = self.vertical_spans[x]
-            taper = int(abs(offset - center) * 0.18)
+            taper = int(abs(offset - center) * 0.14)
             sheen_top = top + 3 + taper
             sheen_bottom = bottom - 3 - taper
             if sheen_top < sheen_bottom:
                 self.create_line(x, sheen_top, x, sheen_bottom, fill=color)
 
     def start_sheen(self) -> None:
-        self.sheen_x = -44
+        self.sheen_x = -60
 
         def step() -> None:
             if not self.is_hovering:
                 self.sheen_after_id = None
                 return
-            self.sheen_x += 30
+            self.sheen_x += 34
             self.draw(self.current_colors)
-            if self.sheen_x < self.button_width + 36:
-                self.sheen_after_id = self.after(9, step)
+            if self.sheen_x < self.button_width + 52:
+                self.sheen_after_id = self.after(8, step)
             else:
-                self.sheen_after_id = self.after(430, self.restart_sheen)
+                self.sheen_after_id = self.after(320, self.restart_sheen)
 
         if self.sheen_after_id is None:
             step()
@@ -1068,18 +1068,65 @@ class KeyHoldApp:
         self.settings_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
         self.section_transition_overlay = ctk.CTkFrame(
             self.content_area,
-            fg_color=THEME["panel_low"],
+            fg_color=THEME["shell"],
             corner_radius=20,
             border_color=THEME["border_soft"],
             border_width=1,
         )
-        self.section_transition_label = ctk.CTkLabel(
+        self.section_transition_panel = ctk.CTkFrame(
             self.section_transition_overlay,
-            text="",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=22, weight="bold"),
+            fg_color=THEME["panel_high"],
+            corner_radius=22,
+            border_color=THEME["border_soft"],
+            border_width=1,
+            width=420,
+            height=220,
+        )
+        self.section_transition_panel.place(relx=0.5, rely=0.5, anchor="center")
+        self.section_transition_panel.pack_propagate(False)
+
+        self.section_transition_title = ctk.CTkLabel(
+            self.section_transition_panel,
+            text="InputLab",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=24, weight="bold"),
             text_color=THEME["text"],
         )
-        self.section_transition_label.place(relx=0.5, rely=0.5, anchor="center")
+        self.section_transition_title.pack(pady=(34, 10))
+
+        self.section_transition_label = ctk.CTkLabel(
+            self.section_transition_panel,
+            text="",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=20, weight="bold"),
+            text_color=THEME["text"],
+        )
+        self.section_transition_label.pack()
+
+        self.section_transition_detail = ctk.CTkLabel(
+            self.section_transition_panel,
+            text="Preparing the interface...",
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color=THEME["muted"],
+        )
+        self.section_transition_detail.pack(pady=(8, 18))
+
+        self.section_transition_bar_track = ctk.CTkFrame(
+            self.section_transition_panel,
+            fg_color=THEME["field"],
+            corner_radius=6,
+            width=248,
+            height=8,
+        )
+        self.section_transition_bar_track.pack()
+        self.section_transition_bar_track.pack_propagate(False)
+
+        self.section_transition_bar = ctk.CTkFrame(
+            self.section_transition_bar_track,
+            fg_color=THEME["blue"],
+            corner_radius=6,
+            width=148,
+            height=8,
+        )
+        self.section_transition_bar.place(relx=0, rely=0, relheight=1)
 
         self.update_startup_status("Loading sections...")
         self.build_keyboard_tab(self.keyboard_view)
@@ -1209,6 +1256,7 @@ class KeyHoldApp:
             "settings": "Loading Settings...",
         }
         self.section_transition_label.configure(text=labels.get(view_name, "Loading..."))
+        self.section_transition_detail.configure(text="Applying layout and refreshing controls...")
         self.section_transition_overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.section_transition_overlay.lift()
         self.root.update_idletasks()
@@ -1305,7 +1353,7 @@ class KeyHoldApp:
             command=self.apply_keyboard_mapping,
             colors=(THEME["blue"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["cyan"]),
-            width=260,
+            width=300,
             height=48,
         )
         apply_button.pack(side="left")
@@ -2034,12 +2082,15 @@ class KeyHoldApp:
 
         container = tk.Frame(
             splash,
-            bg=THEME["shell_high"],
+            bg=THEME["shell"],
             bd=1,
             highlightthickness=1,
             highlightbackground=THEME["border_soft"],
         )
         container.pack(fill="both", expand=True, padx=1, pady=1)
+
+        header_line = tk.Frame(container, bg=THEME["blue"], height=4)
+        header_line.pack(fill="x", padx=18, pady=(18, 0))
 
         if LOGO_PNG_PATH.exists():
             self.splash_logo_image = tk.PhotoImage(file=str(LOGO_PNG_PATH))
@@ -2047,31 +2098,50 @@ class KeyHoldApp:
                 container,
                 image=self.splash_logo_image,
                 text="",
-                bg=THEME["shell_high"],
+                bg=THEME["shell"],
             ).pack(pady=(22, 12))
 
         tk.Label(
             container,
             text="InputLab",
-            bg=THEME["shell_high"],
+            bg=THEME["shell"],
             fg=THEME["text"],
-            font=("Segoe UI Semibold", 22, "bold"),
+            font=("Segoe UI Semibold", 24, "bold"),
         ).pack()
 
         tk.Label(
             container,
             textvariable=self.startup_status_var,
-            bg=THEME["shell_high"],
+            bg=THEME["shell"],
             fg=THEME["muted"],
             font=("Segoe UI", 11),
-        ).pack(pady=(10, 18))
+        ).pack(pady=(10, 8))
 
-        accent = tk.Frame(container, bg=THEME["blue"], height=4)
-        accent.pack(fill="x", padx=18, pady=(0, 18))
+        tk.Label(
+            container,
+            text="Loading modules, profiles, and interface state...",
+            bg=THEME["shell"],
+            fg=THEME["faint"],
+            font=("Segoe UI", 10),
+        ).pack(pady=(0, 16))
+
+        progress_track = tk.Frame(container, bg=THEME["field"], height=8)
+        progress_track.pack(fill="x", padx=42, pady=(0, 10))
+
+        progress_fill = tk.Frame(progress_track, bg=THEME["blue"], height=8, width=188)
+        progress_fill.pack(side="left")
+
+        tk.Label(
+            container,
+            text="Please wait",
+            bg=THEME["shell"],
+            fg=THEME["muted"],
+            font=("Segoe UI Semibold", 10, "bold"),
+        ).pack(pady=(0, 18))
 
         splash.update_idletasks()
-        width = 360
-        height = 220
+        width = 420
+        height = 290
         screen_width = splash.winfo_screenwidth()
         screen_height = splash.winfo_screenheight()
         x = max((screen_width - width) // 2, 0)
