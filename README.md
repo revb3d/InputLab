@@ -42,8 +42,8 @@ Example:
 
 1. Host [update.json](D:\Downloads\autokeyhold\update.json) in your GitHub repo
 2. Put your latest installer URL in its `download_url`
-3. Paste the manifest URL into the app's `Update manifest URL` field
-4. Click `Check for updates`
+3. Installed copies automatically check the manifest on launch
+4. Click `Update now` when a newer version is found
 
 Example manifest fields:
 

@@ -1,10 +1,11 @@
 import json
+import subprocess
+import tempfile
 import threading
 import time
 import tkinter as tk
 import urllib.error
 import urllib.request
-import webbrowser
 from pathlib import Path
 
 import customtkinter as ctk
@@ -19,7 +20,7 @@ except ImportError:
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.5"
+APP_VERSION = "1.0.6"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -119,6 +120,8 @@ class KeyHoldApp:
         self.update_detail_var = ctk.StringVar(value="Update checks are manual.")
         self.latest_download_url = ""
         self.update_check_in_progress = False
+        self.update_download_in_progress = False
+        self.installing_update = False
 
         self.build_ui()
         self.register_key_hold_hotkey(self.toggle_hotkey)
@@ -376,14 +379,14 @@ class KeyHoldApp:
 
         self.open_update_button = ctk.CTkButton(
             update_card,
-            text="Open latest download",
+            text="Update now",
             height=38,
             corner_radius=12,
             fg_color="#182131",
             hover_color="#273347",
             text_color="#f8fbff",
             font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
-            command=self.open_latest_download,
+            command=self.download_and_install_update,
             state="disabled",
         )
         self.open_update_button.pack(fill="x", padx=14, pady=(0, 14))
@@ -1330,7 +1333,12 @@ class KeyHoldApp:
     def set_update_status(self, title: str, detail: str, has_download: bool = False) -> None:
         self.update_status_var.set(title)
         self.update_detail_var.set(detail)
-        self.open_update_button.configure(state="normal" if has_download else "disabled")
+        can_update = has_download and not self.update_download_in_progress
+        button_text = "Downloading..." if self.update_download_in_progress else "Update now"
+        self.open_update_button.configure(
+            state="normal" if can_update else "disabled",
+            text=button_text,
+        )
 
     def check_for_updates(self) -> None:
         if self.update_check_in_progress:
@@ -1434,9 +1442,85 @@ class KeyHoldApp:
         self.check_updates_button.configure(state="normal", text="Check for updates")
         self.set_update_status(title, detail, has_download=bool(download_url))
 
-    def open_latest_download(self) -> None:
-        if self.latest_download_url:
-            webbrowser.open(self.latest_download_url)
+    def download_and_install_update(self) -> None:
+        if self.update_download_in_progress or not self.latest_download_url:
+            return
+
+        self.update_download_in_progress = True
+        self.open_update_button.configure(state="disabled", text="Downloading...")
+        self.check_updates_button.configure(state="disabled")
+        self.update_detail_var.set("Downloading the latest installer...")
+        threading.Thread(target=self.run_update_download, daemon=True).start()
+
+    def run_update_download(self) -> None:
+        try:
+            installer_path = self.download_update_installer(self.latest_download_url)
+        except Exception as exc:
+            self.root.after(0, lambda: self.finish_update_download_error(str(exc)))
+            return
+
+        self.root.after(0, lambda: self.finish_update_download_success(installer_path))
+
+    def download_update_installer(self, download_url: str) -> Path:
+        version_label = self.update_status_var.get().replace(" ", "_").replace(".", "_")
+        installer_path = Path(tempfile.gettempdir()) / f"InputLab_{version_label}_Setup.exe"
+
+        with urllib.request.urlopen(download_url, timeout=30) as response:
+            total_bytes = int(response.headers.get("Content-Length", "0") or 0)
+            bytes_read = 0
+            with installer_path.open("wb") as handle:
+                while True:
+                    chunk = response.read(1024 * 128)
+                    if not chunk:
+                        break
+                    handle.write(chunk)
+                    bytes_read += len(chunk)
+                    self.root.after(
+                        0,
+                        lambda read=bytes_read, total=total_bytes: self.update_download_progress(read, total),
+                    )
+
+        return installer_path
+
+    def update_download_progress(self, bytes_read: int, total_bytes: int) -> None:
+        if total_bytes > 0:
+            percent = int((bytes_read / total_bytes) * 100)
+            self.update_detail_var.set(f"Downloading the latest installer... {percent}%")
+        else:
+            self.update_detail_var.set("Downloading the latest installer...")
+
+    def finish_update_download_error(self, message: str) -> None:
+        self.update_download_in_progress = False
+        self.check_updates_button.configure(state="normal", text="Check for updates")
+        self.set_update_status(
+            self.update_status_var.get(),
+            f"Update download failed: {message}",
+            has_download=bool(self.latest_download_url),
+        )
+
+    def finish_update_download_success(self, installer_path: Path) -> None:
+        self.update_download_in_progress = False
+        self.installing_update = True
+        self.check_updates_button.configure(state="disabled", text="Updating...")
+        self.update_status_var.set("Installing update")
+        self.update_detail_var.set("Closing InputLab and launching the new installer...")
+        self.open_update_button.configure(state="disabled", text="Launching...")
+        self.launch_update_installer(installer_path)
+
+    def launch_update_installer(self, installer_path: Path) -> None:
+        launcher_path = installer_path.with_suffix(".cmd")
+        launcher_path.write_text(
+            "\n".join(
+                [
+                    "@echo off",
+                    "ping 127.0.0.1 -n 3 >nul",
+                    f'start "" "{installer_path}"',
+                ]
+            ),
+            encoding="utf-8",
+        )
+        subprocess.Popen(["cmd", "/c", str(launcher_path)], creationflags=0x08000000)
+        self.on_close()
 
     @staticmethod
     def compare_versions(left: str, right: str) -> int:
