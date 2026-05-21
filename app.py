@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.1.4"
+APP_VERSION = "1.1.5"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -725,7 +725,7 @@ class KeyHoldApp:
         self.profile_tabs.pack(fill="x", padx=18, pady=(0, 10))
 
         profile_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
-        profile_actions.pack(fill="x", padx=18, pady=(0, 16))
+        profile_actions.pack(fill="x", padx=18, pady=(0, 10))
 
         self.add_profile_button = ctk.CTkButton(
             profile_actions,
@@ -779,21 +779,11 @@ class KeyHoldApp:
         )
         self.delete_profile_button.pack(side="left", padx=(10, 0))
 
-        self.export_profiles_button = ctk.CTkButton(
-            profile_actions,
-            text="Export Profiles",
-            height=38,
-            corner_radius=12,
-            fg_color="#182131",
-            hover_color="#273347",
-            text_color="#f8fbff",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
-            command=self.export_macro_profiles,
-        )
-        self.export_profiles_button.pack(side="right")
+        profile_share_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
+        profile_share_actions.pack(fill="x", padx=18, pady=(0, 16))
 
         self.import_profiles_button = ctk.CTkButton(
-            profile_actions,
+            profile_share_actions,
             text="Import Profiles",
             height=38,
             corner_radius=12,
@@ -803,7 +793,20 @@ class KeyHoldApp:
             font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
             command=self.import_macro_profiles,
         )
-        self.import_profiles_button.pack(side="right", padx=(0, 10))
+        self.import_profiles_button.pack(side="left")
+
+        self.export_profiles_button = ctk.CTkButton(
+            profile_share_actions,
+            text="Export Profiles",
+            height=38,
+            corner_radius=12,
+            fg_color="#182131",
+            hover_color="#273347",
+            text_color="#f8fbff",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.export_macro_profiles,
+        )
+        self.export_profiles_button.pack(side="left", padx=(10, 0))
 
         macro_body = ctk.CTkFrame(tab, fg_color="transparent")
         macro_body.pack(padx=20, pady=(0, 16), anchor="w")

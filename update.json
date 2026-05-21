@@ -1,5 +1,5 @@
 {
-  "version": "1.1.4",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.1.4/InputLabSetup.exe",
-  "notes": "Made silent in-app updates reopen InputLab automatically after installation finishes."
+  "version": "1.1.5",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.1.5/InputLabSetup.exe",
+  "notes": "Moved Import Profiles and Export Profiles into a visible sharing row under the controller profile controls."
 }
