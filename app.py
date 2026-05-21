@@ -25,10 +25,11 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.14"
+APP_VERSION = "1.2.15"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
+HIGH_PERFORMANCE_UI = True
 THEME_PRESETS = {
     "Graphite + Electric Lime": {
         "app_bg": "#090c0f",
@@ -255,7 +256,7 @@ class GradientButton(tk.Canvas):
             self.animation_after_id = None
 
         start_colors = self.current_colors
-        frames = 5
+        frames = 3
 
         def step(frame: int) -> None:
             ratio = frame / frames
@@ -265,7 +266,7 @@ class GradientButton(tk.Canvas):
             )
             self.draw(colors)
             if frame < frames:
-                self.animation_after_id = self.after(10, lambda: step(frame + 1))
+                self.animation_after_id = self.after(12, lambda: step(frame + 1))
             else:
                 self.animation_after_id = None
 
@@ -280,7 +281,7 @@ class GradientButton(tk.Canvas):
         for x, color in enumerate(gradient):
             top, bottom = self.vertical_spans[x]
             self.create_line(x, top, x, bottom, fill=color)
-        if self.is_hovering:
+        if self.is_hovering and not HIGH_PERFORMANCE_UI:
             self.draw_sheen()
         if self.outline_color:
             self.draw_rounded_border(self.radius)
@@ -324,6 +325,9 @@ class GradientButton(tk.Canvas):
                 self.create_line(x, sheen_top, x, sheen_bottom, fill=color)
 
     def start_sheen(self) -> None:
+        if HIGH_PERFORMANCE_UI:
+            return
+
         self.sheen_x = -60
 
         def step() -> None:
@@ -562,6 +566,7 @@ class KeyHoldApp:
         self.view_animation_after_ids = []
         self.ui_root = None
         self.section_transition_after_ids = []
+        self.body_canvas_last_width = 0
 
         self.build_ui()
         self.root.after(0, self.show_centered_window)
@@ -1139,7 +1144,9 @@ class KeyHoldApp:
         self.body_canvas.configure(scrollregion=self.body_canvas.bbox("all"))
 
     def on_body_canvas_configure(self, event) -> None:
-        self.body_canvas.itemconfigure(self.body_canvas_window, width=event.width)
+        if event.width != self.body_canvas_last_width:
+            self.body_canvas_last_width = event.width
+            self.body_canvas.itemconfigure(self.body_canvas_window, width=event.width)
 
     def on_body_mousewheel(self, event) -> None:
         if not self.pointer_is_over_widget(self.body_canvas):
@@ -1153,6 +1160,8 @@ class KeyHoldApp:
         self.repaint_after_scroll()
 
     def repaint_after_scroll(self) -> None:
+        if HIGH_PERFORMANCE_UI:
+            return
         if self.scroll_repaint_after_id is not None:
             self.root.after_cancel(self.scroll_repaint_after_id)
         self.scroll_repaint_after_id = self.root.after(45, self.finish_scroll_repaint)
@@ -1241,9 +1250,9 @@ class KeyHoldApp:
                 text_color="#dce7f8",
             )
         self.body_canvas.yview_moveto(0)
-        self.root.update_idletasks()
         self.update_activity_indicators()
-        self.animate_view_switch()
+        if not HIGH_PERFORMANCE_UI:
+            self.animate_view_switch()
 
     def start_section_transition(self, view_name: str) -> None:
         for after_id in self.section_transition_after_ids:
@@ -1259,16 +1268,15 @@ class KeyHoldApp:
         self.section_transition_detail.configure(text="Applying layout and refreshing controls...")
         self.section_transition_overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.section_transition_overlay.lift()
-        self.root.update_idletasks()
 
         self.section_transition_after_ids.append(
-            self.root.after(20, lambda: self.finish_section_transition(view_name))
+            self.root.after(0 if HIGH_PERFORMANCE_UI else 20, lambda: self.finish_section_transition(view_name))
         )
 
     def finish_section_transition(self, view_name: str) -> None:
         self.apply_view_switch(view_name)
         self.section_transition_after_ids.append(
-            self.root.after(90, self.hide_section_transition)
+            self.root.after(40 if HIGH_PERFORMANCE_UI else 90, self.hide_section_transition)
         )
 
     def hide_section_transition(self) -> None:
@@ -2154,7 +2162,7 @@ class KeyHoldApp:
     def update_startup_status(self, message: str) -> None:
         if self.startup_status_var is not None:
             self.startup_status_var.set(message)
-        if self.startup_splash is not None:
+        if self.startup_splash is not None and not HIGH_PERFORMANCE_UI:
             self.startup_splash.update_idletasks()
 
     def apply_window_icon(self) -> None:
@@ -2209,7 +2217,6 @@ class KeyHoldApp:
 
     def show_centered_window(self) -> None:
         self.update_startup_status("Finalizing layout...")
-        self.root.update_idletasks()
         self.center_window()
         self.root.deiconify()
         self.root.lift()
@@ -2920,7 +2927,7 @@ class KeyHoldApp:
     def update_activity_dot(self, widget, active: bool, color: str, state_name: str) -> None:
         previous = getattr(self, state_name)
         setattr(self, state_name, active)
-        if active and previous is not True:
+        if active and previous is not True and not HIGH_PERFORMANCE_UI:
             self.animate_activity_dot(widget, color)
             return
         widget.configure(fg_color=color)
@@ -2931,6 +2938,15 @@ class KeyHoldApp:
             self.root.after(index * 45, lambda value=frame_color: widget.configure(fg_color=value))
 
     def update_live_progress_animation(self, macro_is_running: bool) -> None:
+        if HIGH_PERFORMANCE_UI:
+            if self.live_progress_pulse_after_id is not None:
+                self.root.after_cancel(self.live_progress_pulse_after_id)
+                self.live_progress_pulse_after_id = None
+            self.live_progress_accent.configure(
+                fg_color=THEME["green"] if macro_is_running else THEME["blue"],
+                height=5,
+            )
+            return
         if not macro_is_running:
             if self.live_progress_pulse_after_id is not None:
                 self.root.after_cancel(self.live_progress_pulse_after_id)
@@ -2961,6 +2977,13 @@ class KeyHoldApp:
         )
 
     def pulse_status_badge(self, widget, base_color: str, after_ids: list) -> None:
+        if HIGH_PERFORMANCE_UI:
+            for after_id in after_ids:
+                self.root.after_cancel(after_id)
+            after_ids.clear()
+            widget.configure(fg_color=base_color)
+            return
+
         for after_id in after_ids:
             self.root.after_cancel(after_id)
         after_ids.clear()

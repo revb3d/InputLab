@@ -1,5 +1,5 @@
 {
-  "version": "1.2.14",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.14/InputLabSetup.exe",
-  "notes": "Improved the startup and section loading screens, darkened the gradient hover sweep, and widened Apply Keyboard Mapping so the label no longer clips."
+  "version": "1.2.15",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.15/InputLabSetup.exe",
+  "notes": "Optimized UI performance by reducing redraw-heavy animations, skipping forced layout refreshes during view switches, and throttling resize and scroll repaint work."
 }
