@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.5"
+APP_VERSION = "1.2.6"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -574,10 +574,16 @@ class KeyHoldApp:
 
     def normalize_macro_steps(self, raw_steps) -> list[dict]:
         normalized_steps = []
-        for index in range(4):
-            base_step = default_macro_steps()[index].copy()
-            if index < len(raw_steps) and isinstance(raw_steps[index], dict):
-                loaded_step = raw_steps[index]
+        fallback_steps = default_macro_steps()
+        source_steps = raw_steps if isinstance(raw_steps, list) and raw_steps else fallback_steps
+        for index, raw_step in enumerate(source_steps):
+            base_step = fallback_steps[index].copy() if index < len(fallback_steps) else {
+                "button": "",
+                "hold_ms": 90,
+                "delay_ms": 120,
+            }
+            if isinstance(raw_step, dict):
+                loaded_step = raw_step
                 base_step["button"] = str(loaded_step.get("button", base_step["button"])).upper()
                 base_step["hold_ms"] = self.safe_int(loaded_step.get("hold_ms"), base_step["hold_ms"])
                 base_step["delay_ms"] = self.safe_int(loaded_step.get("delay_ms"), base_step["delay_ms"])
@@ -1324,80 +1330,36 @@ class KeyHoldApp:
             anchor="w",
             font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
             text_color=THEME["muted"],
+        ).pack(side="left", padx=(0, 10))
+        ctk.CTkLabel(
+            header,
+            text="",
+            width=92,
+            anchor="w",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            text_color=THEME["muted"],
         ).pack(side="left")
 
+        self.macro_steps_rows_frame = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
+        self.macro_steps_rows_frame.pack(fill="x")
         self.macro_step_widgets = []
-        for index, step in enumerate(self.macro_steps, start=1):
-            row = ctk.CTkFrame(
-                steps_frame,
-                fg_color=THEME["panel_high"],
-                corner_radius=16,
-                border_color=THEME["border_soft"],
-                border_width=1,
-            )
-            row.pack(fill="x", padx=18, pady=6)
+        self.render_macro_steps(self.macro_steps)
 
-            ctk.CTkLabel(
-                row,
-                text=f"{index:02}",
-                width=42,
-                height=34,
-                corner_radius=17,
-                fg_color=THEME["field"],
-                font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
-                text_color=THEME["text"],
-            ).pack(side="left", padx=(12, 14), pady=10)
+        step_actions = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
+        step_actions.pack(fill="x", padx=18, pady=(8, 16))
 
-            button_box = ctk.CTkComboBox(
-                row,
-                values=[""] + BUTTON_OPTIONS,
-                width=120,
-                height=38,
-                corner_radius=12,
-                border_color=THEME["border"],
-                fg_color=THEME["field"],
-                button_color=THEME["field_hover"],
-                button_hover_color=THEME["blue"],
-                dropdown_fg_color=THEME["field"],
-                dropdown_hover_color="#1d293b",
-                dropdown_text_color=THEME["text"],
-            )
-            button_box.pack(side="left", padx=(0, 10))
-            button_box.set(step["button"])
-
-            hold_entry = ctk.CTkEntry(
-                row,
-                width=100,
-                height=38,
-                corner_radius=12,
-                border_color=THEME["border"],
-                fg_color=THEME["field"],
-                text_color=THEME["text"],
-                font=ctk.CTkFont(family="Segoe UI", size=13),
-            )
-            hold_entry.pack(side="left", padx=(0, 10))
-            hold_entry.insert(0, str(step["hold_ms"]))
-
-            delay_entry = ctk.CTkEntry(
-                row,
-                width=130,
-                height=38,
-                corner_radius=12,
-                border_color=THEME["border"],
-                fg_color=THEME["field"],
-                text_color=THEME["text"],
-                font=ctk.CTkFont(family="Segoe UI", size=13),
-            )
-            delay_entry.pack(side="left")
-            delay_entry.insert(0, str(step["delay_ms"]))
-
-            self.macro_step_widgets.append(
-                {
-                    "button": button_box,
-                    "hold_ms": hold_entry,
-                    "delay_ms": delay_entry,
-                }
-            )
+        self.add_step_button = ctk.CTkButton(
+            step_actions,
+            text="Add Step",
+            height=38,
+            corner_radius=12,
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color=THEME["text"],
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.add_macro_step,
+        )
+        self.add_step_button.pack(side="left")
 
         progress_frame = self.build_section_frame(progress_column)
         progress_frame.pack(fill="both", expand=True)
@@ -1496,6 +1458,132 @@ class KeyHoldApp:
         self.refresh_profile_tabs()
         self.load_selected_profile_into_editor()
         self.update_macro_status()
+
+    def render_macro_steps(self, steps: list[dict]) -> None:
+        if not hasattr(self, "macro_steps_rows_frame"):
+            return
+
+        for widget_set in getattr(self, "macro_step_widgets", []):
+            widget_set["row"].destroy()
+        self.macro_step_widgets = []
+
+        rows = steps if steps else [{"button": "", "hold_ms": 90, "delay_ms": 120}]
+        for step in rows:
+            self.create_macro_step_row(step)
+        self.refresh_macro_step_numbers()
+
+    def create_macro_step_row(self, step: dict) -> None:
+        row = ctk.CTkFrame(
+            self.macro_steps_rows_frame,
+            fg_color=THEME["panel_high"],
+            corner_radius=16,
+            border_color=THEME["border_soft"],
+            border_width=1,
+        )
+        row.pack(fill="x", padx=18, pady=6)
+
+        number_label = ctk.CTkLabel(
+            row,
+            text="",
+            width=42,
+            height=34,
+            corner_radius=17,
+            fg_color=THEME["field"],
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            text_color=THEME["text"],
+        )
+        number_label.pack(side="left", padx=(12, 14), pady=10)
+
+        button_box = ctk.CTkComboBox(
+            row,
+            values=[""] + BUTTON_OPTIONS,
+            width=120,
+            height=38,
+            corner_radius=12,
+            border_color=THEME["border"],
+            fg_color=THEME["field"],
+            button_color=THEME["field_hover"],
+            button_hover_color=THEME["blue"],
+            dropdown_fg_color=THEME["field"],
+            dropdown_hover_color="#1d293b",
+            dropdown_text_color=THEME["text"],
+        )
+        button_box.pack(side="left", padx=(0, 10))
+        button_box.set(str(step.get("button", "")).upper())
+
+        hold_entry = ctk.CTkEntry(
+            row,
+            width=100,
+            height=38,
+            corner_radius=12,
+            border_color=THEME["border"],
+            fg_color=THEME["field"],
+            text_color=THEME["text"],
+            font=ctk.CTkFont(family="Segoe UI", size=13),
+        )
+        hold_entry.pack(side="left", padx=(0, 10))
+        hold_entry.insert(0, str(step.get("hold_ms", 90)))
+
+        delay_entry = ctk.CTkEntry(
+            row,
+            width=130,
+            height=38,
+            corner_radius=12,
+            border_color=THEME["border"],
+            fg_color=THEME["field"],
+            text_color=THEME["text"],
+            font=ctk.CTkFont(family="Segoe UI", size=13),
+        )
+        delay_entry.pack(side="left", padx=(0, 10))
+        delay_entry.insert(0, str(step.get("delay_ms", 120)))
+
+        widget_set = {
+            "row": row,
+            "number": number_label,
+            "button": button_box,
+            "hold_ms": hold_entry,
+            "delay_ms": delay_entry,
+        }
+
+        remove_button = ctk.CTkButton(
+            row,
+            text="Remove",
+            width=92,
+            height=36,
+            corner_radius=12,
+            fg_color="#25151a",
+            hover_color="#3b1b23",
+            text_color=THEME["text"],
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=12, weight="bold"),
+            command=lambda target=widget_set: self.remove_macro_step(target),
+        )
+        remove_button.pack(side="left")
+        widget_set["remove"] = remove_button
+
+        self.macro_step_widgets.append(widget_set)
+
+    def refresh_macro_step_numbers(self) -> None:
+        for index, widget_set in enumerate(self.macro_step_widgets, start=1):
+            widget_set["number"].configure(text=f"{index:02}")
+            widget_set["remove"].configure(state="normal" if len(self.macro_step_widgets) > 1 else "disabled")
+
+    def add_macro_step(self) -> None:
+        self.create_macro_step_row({"button": "", "hold_ms": 90, "delay_ms": 120})
+        self.refresh_macro_step_numbers()
+        self.on_body_scroll_frame_configure()
+        self.set_macro_status("Step added", "Added a new blank controller macro step.")
+
+    def remove_macro_step(self, widget_set: dict) -> None:
+        if len(self.macro_step_widgets) <= 1:
+            self.set_macro_status("Cannot delete", "Keep at least one controller macro step in the profile.")
+            return
+
+        if widget_set in self.macro_step_widgets:
+            self.macro_step_widgets.remove(widget_set)
+        widget_set["row"].destroy()
+        self.refresh_macro_step_numbers()
+        self.on_body_scroll_frame_configure()
+        self.set_macro_status("Step removed", "Removed that controller macro step.")
 
     def build_status_card(self, parent, status_var, detail_var):
         card = ctk.CTkFrame(
@@ -1766,12 +1854,7 @@ class KeyHoldApp:
         self.macro_interval_entry.delete(0, "end")
         self.macro_interval_entry.insert(0, f"{profile['interval_seconds']:g}")
 
-        for widget_set, step in zip(self.macro_step_widgets, profile["steps"]):
-            widget_set["button"].set(step["button"])
-            widget_set["hold_ms"].delete(0, "end")
-            widget_set["hold_ms"].insert(0, str(step["hold_ms"]))
-            widget_set["delay_ms"].delete(0, "end")
-            widget_set["delay_ms"].insert(0, str(step["delay_ms"]))
+        self.render_macro_steps(profile["steps"])
 
         self.sync_active_profile_fields()
         self.macro_detail_var.set(
@@ -2674,6 +2757,8 @@ class KeyHoldApp:
             "Profile reset": "#1d4ed8",
             "Profiles imported": "#1d4ed8",
             "Profiles exported": "#1d4ed8",
+            "Step added": "#1d4ed8",
+            "Step removed": THEME["field"],
             "Driver needed": "#7c2d12",
             "Invalid hotkey": "#7c2d12",
             "Invalid macro": "#7c2d12",

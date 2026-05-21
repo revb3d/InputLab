@@ -1,5 +1,5 @@
 {
-  "version": "1.2.5",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.5/InputLabSetup.exe",
-  "notes": "Faster faded button sheen, cleaner borderless primary gradient buttons, a wider startup window, and DPI-scaling changes to prevent monitor-switch refresh lag."
+  "version": "1.2.6",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.6/InputLabSetup.exe",
+  "notes": "Controller macro profiles can now add or remove steps dynamically, and saved/imported profiles keep all of their macro steps instead of being limited to four."
 }
