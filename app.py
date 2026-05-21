@@ -1,4 +1,5 @@
 import json
+import ctypes
 import subprocess
 import tempfile
 import threading
@@ -20,7 +21,7 @@ except ImportError:
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.0.8"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -76,11 +77,12 @@ class KeyHoldApp:
     def __init__(self) -> None:
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
+        self.apply_windows_app_id()
 
         self.root = ctk.CTk()
         self.root.title("InputLab")
-        self.root.geometry("720x560")
-        self.root.minsize(720, 560)
+        self.root.geometry("1180x760")
+        self.root.minsize(980, 700)
         self.root.configure(fg_color="#0b0f14")
         self.logo_image = None
         self.logo_photo = None
@@ -124,6 +126,7 @@ class KeyHoldApp:
         self.installing_update = False
 
         self.build_ui()
+        self.center_window()
         self.register_key_hold_hotkey(self.toggle_hotkey)
         self.register_macro_hotkey(self.macro_hotkey)
         self.root.after(1200, self.auto_check_for_updates)
@@ -886,6 +889,22 @@ class KeyHoldApp:
             except Exception:
                 self.logo_photo = None
 
+    def apply_windows_app_id(self) -> None:
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("revb3d.InputLab")
+        except Exception:
+            pass
+
+    def center_window(self) -> None:
+        self.root.update_idletasks()
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = max((screen_width - width) // 2, 0)
+        y = max((screen_height - height) // 2, 0)
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
+
     def register_key_hold_hotkey(self, hotkey: str) -> None:
         if self.key_hold_hotkey_handle is not None:
             keyboard.remove_hotkey(self.key_hold_hotkey_handle)
@@ -1514,7 +1533,7 @@ class KeyHoldApp:
                 [
                     "@echo off",
                     "ping 127.0.0.1 -n 3 >nul",
-                    f'start "" "{installer_path}"',
+                    f'start "" "{installer_path}" /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
                 ]
             ),
             encoding="utf-8",
