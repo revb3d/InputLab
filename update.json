@@ -1,5 +1,5 @@
 {
-  "version": "1.2.7",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.7/InputLabSetup.exe",
-  "notes": "Added a full Settings tab with six built-in color themes. Theme selection now persists across restarts and rebuilds the app UI with the selected preset."
+  "version": "1.2.8",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.8/InputLabSetup.exe",
+  "notes": "Added a startup splash screen and a section transition overlay so InputLab hides layout reflow while opening and switching sections."
 }

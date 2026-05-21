@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.7"
+APP_VERSION = "1.2.8"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -515,6 +515,9 @@ class KeyHoldApp:
         self.logo_image = None
         self.logo_photo = None
         self.apply_window_icon()
+        self.startup_splash = None
+        self.startup_status_var = tk.StringVar(value="Loading InputLab...")
+        self.create_startup_splash()
 
         self.toggle_hotkey = self.config["toggle_hotkey"]
         self.target_key = self.config["target_key"]
@@ -561,6 +564,7 @@ class KeyHoldApp:
         self.live_progress_pulse_after_id = None
         self.view_animation_after_ids = []
         self.ui_root = None
+        self.section_transition_after_ids = []
 
         self.build_ui()
         self.root.after(0, self.show_centered_window)
@@ -766,6 +770,7 @@ class KeyHoldApp:
         return ""
 
     def build_ui(self) -> None:
+        self.update_startup_status("Building interface...")
         if self.ui_root is not None:
             self.ui_root.destroy()
             self.ui_root = None
@@ -1067,11 +1072,26 @@ class KeyHoldApp:
         self.keyboard_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
         self.macro_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
         self.settings_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
+        self.section_transition_overlay = ctk.CTkFrame(
+            self.content_area,
+            fg_color=THEME["panel_low"],
+            corner_radius=20,
+            border_color=THEME["border_soft"],
+            border_width=1,
+        )
+        self.section_transition_label = ctk.CTkLabel(
+            self.section_transition_overlay,
+            text="",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=22, weight="bold"),
+            text_color=THEME["text"],
+        )
+        self.section_transition_label.place(relx=0.5, rely=0.5, anchor="center")
 
+        self.update_startup_status("Loading sections...")
         self.build_keyboard_tab(self.keyboard_view)
         self.build_macro_tab(self.macro_view)
         self.build_settings_tab(self.settings_view)
-        self.show_view("keyboard")
+        self.show_view(self.current_view if self.current_view in {"keyboard", "macro", "settings"} else "keyboard", instant=True)
         self.update_activity_indicators()
 
     def on_body_scroll_frame_configure(self, _event=None) -> None:
@@ -1111,10 +1131,17 @@ class KeyHoldApp:
             and widget_y <= pointer_y <= widget_y + widget.winfo_height()
         )
 
-    def show_view(self, view_name: str) -> None:
+    def show_view(self, view_name: str, instant: bool = False) -> None:
         if self.current_view == view_name:
             return
 
+        if instant or not hasattr(self, "section_transition_overlay"):
+            self.apply_view_switch(view_name)
+            return
+
+        self.start_section_transition(view_name)
+
+    def apply_view_switch(self, view_name: str) -> None:
         self.current_view = view_name
 
         self.keyboard_view.pack_forget()
@@ -1172,8 +1199,39 @@ class KeyHoldApp:
                 hover_color=THEME["field_hover"],
                 text_color="#dce7f8",
             )
+        self.body_canvas.yview_moveto(0)
+        self.root.update_idletasks()
         self.update_activity_indicators()
         self.animate_view_switch()
+
+    def start_section_transition(self, view_name: str) -> None:
+        for after_id in self.section_transition_after_ids:
+            self.root.after_cancel(after_id)
+        self.section_transition_after_ids = []
+
+        labels = {
+            "keyboard": "Loading Keyboard Hold...",
+            "macro": "Loading Controller Macro...",
+            "settings": "Loading Settings...",
+        }
+        self.section_transition_label.configure(text=labels.get(view_name, "Loading..."))
+        self.section_transition_overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.section_transition_overlay.lift()
+        self.root.update_idletasks()
+
+        self.section_transition_after_ids.append(
+            self.root.after(20, lambda: self.finish_section_transition(view_name))
+        )
+
+    def finish_section_transition(self, view_name: str) -> None:
+        self.apply_view_switch(view_name)
+        self.section_transition_after_ids.append(
+            self.root.after(90, self.hide_section_transition)
+        )
+
+    def hide_section_transition(self) -> None:
+        self.section_transition_overlay.place_forget()
+        self.section_transition_after_ids = []
 
     def animate_view_switch(self) -> None:
         for after_id in self.view_animation_after_ids:
@@ -1963,6 +2021,67 @@ class KeyHoldApp:
         entry.insert(0, value)
         return entry
 
+    def create_startup_splash(self) -> None:
+        splash = tk.Toplevel(self.root)
+        splash.overrideredirect(True)
+        splash.configure(bg=THEME["app_bg"])
+        splash.attributes("-topmost", True)
+
+        container = tk.Frame(
+            splash,
+            bg=THEME["shell_high"],
+            bd=1,
+            highlightthickness=1,
+            highlightbackground=THEME["border_soft"],
+        )
+        container.pack(fill="both", expand=True, padx=1, pady=1)
+
+        if LOGO_PNG_PATH.exists():
+            self.splash_logo_image = tk.PhotoImage(file=str(LOGO_PNG_PATH))
+            tk.Label(
+                container,
+                image=self.splash_logo_image,
+                text="",
+                bg=THEME["shell_high"],
+            ).pack(pady=(22, 12))
+
+        tk.Label(
+            container,
+            text="InputLab",
+            bg=THEME["shell_high"],
+            fg=THEME["text"],
+            font=("Segoe UI Semibold", 22, "bold"),
+        ).pack()
+
+        tk.Label(
+            container,
+            textvariable=self.startup_status_var,
+            bg=THEME["shell_high"],
+            fg=THEME["muted"],
+            font=("Segoe UI", 11),
+        ).pack(pady=(10, 18))
+
+        accent = tk.Frame(container, bg=THEME["blue"], height=4)
+        accent.pack(fill="x", padx=18, pady=(0, 18))
+
+        splash.update_idletasks()
+        width = 360
+        height = 220
+        screen_width = splash.winfo_screenwidth()
+        screen_height = splash.winfo_screenheight()
+        x = max((screen_width - width) // 2, 0)
+        y = max((screen_height - height) // 2, 0)
+        splash.geometry(f"{width}x{height}+{x}+{y}")
+        splash.deiconify()
+        splash.update()
+        self.startup_splash = splash
+
+    def update_startup_status(self, message: str) -> None:
+        if self.startup_status_var is not None:
+            self.startup_status_var.set(message)
+        if self.startup_splash is not None:
+            self.startup_splash.update_idletasks()
+
     def apply_window_icon(self) -> None:
         if LOGO_ICO_PATH.exists():
             try:
@@ -1995,10 +2114,15 @@ class KeyHoldApp:
         self.root.geometry(f"{width}x{height}+{x}+{y}")
 
     def show_centered_window(self) -> None:
+        self.update_startup_status("Finalizing layout...")
+        self.root.update_idletasks()
         self.center_window()
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
+        if self.startup_splash is not None:
+            self.startup_splash.destroy()
+            self.startup_splash = None
 
     def register_key_hold_hotkey(self, hotkey: str) -> None:
         if self.key_hold_hotkey_handle is not None:
