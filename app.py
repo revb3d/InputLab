@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.3"
+APP_VERSION = "1.2.4"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -94,6 +94,8 @@ class GradientButton(tk.Canvas):
         self.corner_radius = corner_radius
         self.current_colors = colors
         self.animation_after_id = None
+        self.sheen_after_id = None
+        self.sheen_x = -48
         self.is_hovering = False
         self.is_pressed = False
         self.bind("<Enter>", self.on_enter)
@@ -105,10 +107,15 @@ class GradientButton(tk.Canvas):
     def on_enter(self, _event) -> None:
         self.is_hovering = True
         self.animate_to(self.hover_colors)
+        self.start_sheen()
 
     def on_leave(self, _event) -> None:
         self.is_hovering = False
         self.is_pressed = False
+        if self.sheen_after_id is not None:
+            self.after_cancel(self.sheen_after_id)
+            self.sheen_after_id = None
+        self.sheen_x = -48
         self.animate_to(self.colors)
 
     def on_press(self, _event) -> None:
@@ -149,6 +156,8 @@ class GradientButton(tk.Canvas):
         self.current_colors = colors
         self.delete("all")
         radius = min(self.corner_radius, self.button_height // 2, self.button_width // 2)
+        if not pressed:
+            self.draw_shadow(radius)
         left = self.winfo_rgb(colors[0])
         right = self.winfo_rgb(colors[1])
         for x in range(self.button_width):
@@ -169,6 +178,8 @@ class GradientButton(tk.Canvas):
                 top = inset
                 bottom = self.button_height - inset
             self.create_line(x, top, x, bottom, fill=f"#{red:02x}{green:02x}{blue:02x}")
+        if self.is_hovering:
+            self.draw_sheen(radius)
         self.draw_rounded_border(radius)
         self.create_text(
             self.button_width // 2,
@@ -177,6 +188,58 @@ class GradientButton(tk.Canvas):
             fill=THEME["text"],
             font=("Segoe UI Semibold", 15, "bold"),
         )
+
+    def draw_shadow(self, radius: int) -> None:
+        width = self.button_width - 2
+        height = self.button_height - 2
+        shadow = "#06101c"
+        self.create_arc(2, 4, radius * 2 + 2, radius * 2 + 4, start=90, extent=90, style="arc", outline=shadow)
+        self.create_arc(width - radius * 2, 4, width, radius * 2 + 4, start=0, extent=90, style="arc", outline=shadow)
+        self.create_arc(2, height - radius * 2, radius * 2 + 2, height, start=180, extent=90, style="arc", outline=shadow)
+        self.create_arc(width - radius * 2, height - radius * 2, width, height, start=270, extent=90, style="arc", outline=shadow)
+        self.create_line(radius + 2, 4, width - radius, 4, fill=shadow)
+        self.create_line(radius + 2, height, width - radius, height, fill=shadow)
+        self.create_line(2, radius + 4, 2, height - radius, fill=shadow)
+        self.create_line(width, radius + 4, width, height - radius, fill=shadow)
+
+    def draw_sheen(self, radius: int) -> None:
+        band_width = 34
+        for offset in range(band_width):
+            x = int(self.sheen_x + offset)
+            if x < 0 or x >= self.button_width:
+                continue
+            alpha = 1 - abs((offset / band_width) - 0.5) * 2
+            color = self.mix_hex("#ffffff", self.current_colors[1], 0.68 + (0.18 * (1 - alpha)))
+            top = 1
+            bottom = self.button_height - 1
+            if x < radius:
+                circle_offset = radius - x
+                inset = int(radius - (radius * radius - circle_offset * circle_offset) ** 0.5)
+                top = inset
+                bottom = self.button_height - inset
+            elif x >= self.button_width - radius:
+                circle_offset = x - (self.button_width - radius - 1)
+                inset = int(radius - (radius * radius - circle_offset * circle_offset) ** 0.5)
+                top = inset
+                bottom = self.button_height - inset
+            self.create_line(x, top + 2, x, bottom - 2, fill=color)
+
+    def start_sheen(self) -> None:
+        self.sheen_x = -44
+
+        def step() -> None:
+            if not self.is_hovering:
+                self.sheen_after_id = None
+                return
+            self.sheen_x += 14
+            self.draw(self.current_colors)
+            if self.sheen_x < self.button_width + 36:
+                self.sheen_after_id = self.after(18, step)
+            else:
+                self.sheen_after_id = self.after(700, self.start_sheen)
+
+        if self.sheen_after_id is None:
+            step()
 
     def draw_rounded_border(self, radius: int) -> None:
         width = self.button_width - 1
@@ -346,6 +409,10 @@ class KeyHoldApp:
         self.scroll_repaint_after_id = None
         self.last_keyboard_active = None
         self.last_macro_active = None
+        self.key_status_pulse_after_ids = []
+        self.macro_status_pulse_after_ids = []
+        self.live_progress_pulse_after_id = None
+        self.view_animation_after_ids = []
 
         self.build_ui()
         self.root.after(0, self.show_centered_window)
@@ -845,6 +912,11 @@ class KeyHoldApp:
         )
 
     def show_view(self, view_name: str) -> None:
+        if self.current_view == view_name and self.keyboard_view.winfo_ismapped() or (
+            self.current_view == view_name and self.macro_view.winfo_ismapped()
+        ):
+            return
+
         self.current_view = view_name
 
         self.keyboard_view.pack_forget()
@@ -875,6 +947,28 @@ class KeyHoldApp:
                 text_color="#dce7f8",
             )
         self.update_activity_indicators()
+        self.animate_view_switch()
+
+    def animate_view_switch(self) -> None:
+        for after_id in self.view_animation_after_ids:
+            self.root.after_cancel(after_id)
+        self.view_animation_after_ids = []
+
+        frames = [
+            (0, THEME["blue"], 4),
+            (35, THEME["blue_hover"], 7),
+            (80, THEME["cyan"], 5),
+            (130, THEME["blue"], 4),
+        ]
+        for delay, color, height in frames:
+            after_id = self.root.after(
+                delay,
+                lambda value=color, line_height=height: self.workspace_accent.configure(
+                    fg_color=value,
+                    height=line_height,
+                ),
+            )
+            self.view_animation_after_ids.append(after_id)
 
     def build_keyboard_tab(self, tab) -> None:
         self.add_tab_heading(
@@ -2209,6 +2303,7 @@ class KeyHoldApp:
         )
         if hasattr(self, "live_progress_accent"):
             self.live_progress_accent.configure(fg_color=THEME["green"] if macro_is_running else THEME["blue"])
+            self.update_live_progress_animation(macro_is_running)
 
     def update_activity_dot(self, widget, active: bool, color: str, state_name: str) -> None:
         previous = getattr(self, state_name)
@@ -2222,6 +2317,49 @@ class KeyHoldApp:
         frames = [THEME["border"], "#f97316", color, "#f97316", color]
         for index, frame_color in enumerate(frames):
             self.root.after(index * 45, lambda value=frame_color: widget.configure(fg_color=value))
+
+    def update_live_progress_animation(self, macro_is_running: bool) -> None:
+        if not macro_is_running:
+            if self.live_progress_pulse_after_id is not None:
+                self.root.after_cancel(self.live_progress_pulse_after_id)
+                self.live_progress_pulse_after_id = None
+            self.live_progress_accent.configure(fg_color=THEME["blue"], height=5)
+            return
+
+        if self.live_progress_pulse_after_id is None:
+            self.animate_live_progress_pulse(0)
+
+    def animate_live_progress_pulse(self, frame: int) -> None:
+        if not self.macro_running.is_set():
+            self.live_progress_pulse_after_id = None
+            self.live_progress_accent.configure(fg_color=THEME["blue"], height=5)
+            return
+
+        sequence = [
+            (THEME["green_deep"], 5),
+            (THEME["green"], 7),
+            ("#22c55e", 5),
+            (THEME["green"], 6),
+        ]
+        color, height = sequence[frame % len(sequence)]
+        self.live_progress_accent.configure(fg_color=color, height=height)
+        self.live_progress_pulse_after_id = self.root.after(
+            260,
+            lambda: self.animate_live_progress_pulse(frame + 1),
+        )
+
+    def pulse_status_badge(self, widget, base_color: str, after_ids: list) -> None:
+        for after_id in after_ids:
+            self.root.after_cancel(after_id)
+        after_ids.clear()
+
+        frames = [THEME["blue_hover"], base_color, THEME["cyan"], base_color]
+        for index, color in enumerate(frames):
+            after_id = self.root.after(
+                index * 55,
+                lambda value=color: widget.configure(fg_color=value),
+            )
+            after_ids.append(after_id)
 
     def set_key_status(self, status: str, detail: str) -> None:
         self.key_status_var.set(status)
@@ -2492,9 +2630,10 @@ class KeyHoldApp:
             "Invalid key": "#7c2d12",
             "Missing input": "#7c2d12",
         }
-        self.key_status_badge.configure(
-            fg_color=color_map.get(self.key_status_var.get(), THEME["field"])
-        )
+        color = color_map.get(self.key_status_var.get(), THEME["field"])
+        self.key_status_badge.configure(fg_color=color)
+        if self.key_status_var.get() != "Idle":
+            self.pulse_status_badge(self.key_status_badge, color, self.key_status_pulse_after_ids)
 
     def update_macro_status(self) -> None:
         color_map = {
@@ -2516,9 +2655,10 @@ class KeyHoldApp:
             "Profile deleted": THEME["field"],
             "Import failed": "#7c2d12",
         }
-        self.macro_status_badge.configure(
-            fg_color=color_map.get(self.macro_status_var.get(), THEME["field"])
-        )
+        color = color_map.get(self.macro_status_var.get(), THEME["field"])
+        self.macro_status_badge.configure(fg_color=color)
+        if self.macro_status_var.get() != "Ready":
+            self.pulse_status_badge(self.macro_status_badge, color, self.macro_status_pulse_after_ids)
 
     def on_close(self) -> None:
         self.sync_config_from_ui()

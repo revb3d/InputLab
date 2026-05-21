@@ -1,5 +1,5 @@
 {
-  "version": "1.2.3",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.3/InputLabSetup.exe",
-  "notes": "Removed the three-color segmented bars and replaced them with a cleaner single blue accent line while keeping gradient primary action buttons."
+  "version": "1.2.4",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.4/InputLabSetup.exe",
+  "notes": "Added more lightweight UI motion: animated gradient button sheen, status badge pulses, view-switch accent motion, and a live-progress heartbeat while macros run."
 }
