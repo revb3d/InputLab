@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.0.3/InputLabSetup.exe",
-  "notes": "Fixed the installer naming, corrected the entry width startup crash, and aligned the packaged exe and installer with the InputLab brand."
+  "version": "1.0.4",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.0.4/InputLabSetup.exe",
+  "notes": "Added the InputLab logo to the app header and packaged the custom app icon into the exe and installer build."
 }

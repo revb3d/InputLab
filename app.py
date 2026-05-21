@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+import tkinter as tk
 import urllib.error
 import urllib.request
 import webbrowser
@@ -8,6 +9,7 @@ from pathlib import Path
 
 import customtkinter as ctk
 import keyboard
+from PIL import Image
 
 try:
     import vgamepad as vg
@@ -17,8 +19,10 @@ except ImportError:
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.4"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
+LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
+LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
 BUTTON_OPTIONS = [
     "A",
     "B",
@@ -77,6 +81,9 @@ class KeyHoldApp:
         self.root.geometry("720x560")
         self.root.minsize(720, 560)
         self.root.configure(fg_color="#0b0f14")
+        self.logo_image = None
+        self.logo_photo = None
+        self.apply_window_icon()
 
         self.config = self.load_config()
         self.toggle_hotkey = self.config["toggle_hotkey"]
@@ -204,8 +211,23 @@ class KeyHoldApp:
         header = ctk.CTkFrame(outer, fg_color="transparent")
         header.pack(fill="x", padx=22, pady=(22, 14))
 
+        header_top = ctk.CTkFrame(header, fg_color="transparent")
+        header_top.pack(fill="x")
+
+        if LOGO_PNG_PATH.exists():
+            self.logo_image = ctk.CTkImage(
+                light_image=Image.open(LOGO_PNG_PATH),
+                dark_image=Image.open(LOGO_PNG_PATH),
+                size=(52, 52),
+            )
+            logo_label = ctk.CTkLabel(header_top, text="", image=self.logo_image)
+            logo_label.pack(side="left", padx=(0, 14))
+
+        title_block = ctk.CTkFrame(header_top, fg_color="transparent")
+        title_block.pack(side="left", fill="x", expand=True)
+
         title = ctk.CTkLabel(
-            header,
+            title_block,
             text="InputLab",
             font=ctk.CTkFont(family="Segoe UI Semibold", size=28, weight="bold"),
             text_color="#f5f7fb",
@@ -213,7 +235,7 @@ class KeyHoldApp:
         title.pack(anchor="w")
 
         subtitle = ctk.CTkLabel(
-            header,
+            title_block,
             text="Keep your keyboard hold running while you switch over to a separate Xbox controller macro tab.",
             font=ctk.CTkFont(family="Segoe UI", size=14),
             text_color="#93a0b8",
@@ -845,6 +867,21 @@ class KeyHoldApp:
         entry.pack(side="left", fill="x" if expand_entry else "none", expand=expand_entry)
         entry.insert(0, value)
         return entry
+
+    def apply_window_icon(self) -> None:
+        if LOGO_ICO_PATH.exists():
+            try:
+                self.root.iconbitmap(str(LOGO_ICO_PATH))
+                return
+            except Exception:
+                pass
+
+        if LOGO_PNG_PATH.exists():
+            try:
+                self.logo_photo = tk.PhotoImage(file=str(LOGO_PNG_PATH))
+                self.root.iconphoto(True, self.logo_photo)
+            except Exception:
+                self.logo_photo = None
 
     def register_key_hold_hotkey(self, hotkey: str) -> None:
         if self.key_hold_hotkey_handle is not None:

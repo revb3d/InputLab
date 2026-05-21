@@ -42,7 +42,7 @@ if exist "build\KeyHoldToggle" rmdir /s /q "build\KeyHoldToggle"
 if exist "InputLab.spec" del /q "InputLab.spec"
 if exist "KeyHoldToggle.spec" del /q "KeyHoldToggle.spec"
 
-%PY_CMD% -m PyInstaller --noconfirm --windowed --name InputLab --collect-binaries vgamepad --collect-data vgamepad app.py
+%PY_CMD% -m PyInstaller --noconfirm --windowed --name InputLab --icon InputLabLogo.ico --add-data "InputLabLogo.png;." --add-data "InputLabLogo.ico;." --collect-binaries vgamepad --collect-data vgamepad app.py
 if errorlevel 1 (
   echo Failed to build the application files.
   pause
