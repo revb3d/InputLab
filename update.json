@@ -1,5 +1,5 @@
 {
-  "version": "1.2.2",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.2/InputLabSetup.exe",
-  "notes": "Made gradients more visible with a workspace gradient wash and gradient-rendered primary action buttons, while restoring the Updates card visibility in the sidebar."
+  "version": "1.2.3",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.3/InputLabSetup.exe",
+  "notes": "Removed the three-color segmented bars and replaced them with a cleaner single blue accent line while keeping gradient primary action buttons."
 }

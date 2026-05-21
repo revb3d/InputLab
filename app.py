@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.2"
+APP_VERSION = "1.2.3"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -63,11 +63,23 @@ class GradientButton(tk.Canvas):
         hover_colors: tuple[str, str],
         width: int = 174,
         height: int = 48,
+        corner_radius: int = 16,
     ) -> None:
+        parent_bg = THEME["panel_low"]
+        try:
+            raw_parent_bg = parent.cget("fg_color")
+            if isinstance(raw_parent_bg, tuple):
+                parent_bg = raw_parent_bg[1]
+            elif isinstance(raw_parent_bg, str) and raw_parent_bg != "transparent":
+                parent_bg = raw_parent_bg
+        except Exception:
+            pass
+
         super().__init__(
             parent,
             width=width,
             height=height,
+            bg=parent_bg,
             bd=0,
             highlightthickness=0,
             relief="flat",
@@ -79,13 +91,64 @@ class GradientButton(tk.Canvas):
         self.hover_colors = hover_colors
         self.button_width = width
         self.button_height = height
-        self.bind("<Button-1>", lambda _event: self.command())
-        self.bind("<Enter>", lambda _event: self.draw(self.hover_colors))
-        self.bind("<Leave>", lambda _event: self.draw(self.colors))
+        self.corner_radius = corner_radius
+        self.current_colors = colors
+        self.animation_after_id = None
+        self.is_hovering = False
+        self.is_pressed = False
+        self.bind("<Enter>", self.on_enter)
+        self.bind("<Leave>", self.on_leave)
+        self.bind("<ButtonPress-1>", self.on_press)
+        self.bind("<ButtonRelease-1>", self.on_release)
         self.draw(self.colors)
 
-    def draw(self, colors: tuple[str, str]) -> None:
+    def on_enter(self, _event) -> None:
+        self.is_hovering = True
+        self.animate_to(self.hover_colors)
+
+    def on_leave(self, _event) -> None:
+        self.is_hovering = False
+        self.is_pressed = False
+        self.animate_to(self.colors)
+
+    def on_press(self, _event) -> None:
+        self.is_pressed = True
+        self.draw(self.darken_pair(self.current_colors, 0.9), pressed=True)
+
+    def on_release(self, event) -> None:
+        was_pressed = self.is_pressed
+        self.is_pressed = False
+        inside = 0 <= event.x <= self.button_width and 0 <= event.y <= self.button_height
+        self.animate_to(self.hover_colors if self.is_hovering else self.colors)
+        if was_pressed and inside:
+            self.command()
+
+    def animate_to(self, target_colors: tuple[str, str]) -> None:
+        if self.animation_after_id is not None:
+            self.after_cancel(self.animation_after_id)
+            self.animation_after_id = None
+
+        start_colors = self.current_colors
+        frames = 7
+
+        def step(frame: int) -> None:
+            ratio = frame / frames
+            colors = (
+                self.mix_hex(start_colors[0], target_colors[0], ratio),
+                self.mix_hex(start_colors[1], target_colors[1], ratio),
+            )
+            self.draw(colors)
+            if frame < frames:
+                self.animation_after_id = self.after(14, lambda: step(frame + 1))
+            else:
+                self.animation_after_id = None
+
+        step(1)
+
+    def draw(self, colors: tuple[str, str], pressed: bool = False) -> None:
+        self.current_colors = colors
         self.delete("all")
+        radius = min(self.corner_radius, self.button_height // 2, self.button_width // 2)
         left = self.winfo_rgb(colors[0])
         right = self.winfo_rgb(colors[1])
         for x in range(self.button_width):
@@ -93,22 +156,70 @@ class GradientButton(tk.Canvas):
             red = int((left[0] + (right[0] - left[0]) * ratio) / 256)
             green = int((left[1] + (right[1] - left[1]) * ratio) / 256)
             blue = int((left[2] + (right[2] - left[2]) * ratio) / 256)
-            self.create_line(x, 0, x, self.button_height, fill=f"#{red:02x}{green:02x}{blue:02x}")
-        self.create_rectangle(
-            0,
-            0,
-            self.button_width - 1,
-            self.button_height - 1,
-            outline="#6ea8ff",
-            width=1,
-        )
+            top = 0
+            bottom = self.button_height
+            if x < radius:
+                offset = radius - x
+                inset = int(radius - (radius * radius - offset * offset) ** 0.5)
+                top = inset
+                bottom = self.button_height - inset
+            elif x >= self.button_width - radius:
+                offset = x - (self.button_width - radius - 1)
+                inset = int(radius - (radius * radius - offset * offset) ** 0.5)
+                top = inset
+                bottom = self.button_height - inset
+            self.create_line(x, top, x, bottom, fill=f"#{red:02x}{green:02x}{blue:02x}")
+        self.draw_rounded_border(radius)
         self.create_text(
             self.button_width // 2,
-            self.button_height // 2,
+            (self.button_height // 2) + (1 if pressed else 0),
             text=self.text,
             fill=THEME["text"],
             font=("Segoe UI Semibold", 15, "bold"),
         )
+
+    def draw_rounded_border(self, radius: int) -> None:
+        width = self.button_width - 1
+        height = self.button_height - 1
+        outline = "#6ea8ff"
+        self.create_arc(0, 0, radius * 2, radius * 2, start=90, extent=90, style="arc", outline=outline)
+        self.create_arc(width - radius * 2, 0, width, radius * 2, start=0, extent=90, style="arc", outline=outline)
+        self.create_arc(0, height - radius * 2, radius * 2, height, start=180, extent=90, style="arc", outline=outline)
+        self.create_arc(
+            width - radius * 2,
+            height - radius * 2,
+            width,
+            height,
+            start=270,
+            extent=90,
+            style="arc",
+            outline=outline,
+        )
+        self.create_line(radius, 0, width - radius, 0, fill=outline)
+        self.create_line(radius, height, width - radius, height, fill=outline)
+        self.create_line(0, radius, 0, height - radius, fill=outline)
+        self.create_line(width, radius, width, height - radius, fill=outline)
+
+    def darken_pair(self, colors: tuple[str, str], factor: float) -> tuple[str, str]:
+        return tuple(self.scale_hex(color, factor) for color in colors)
+
+    def scale_hex(self, color: str, factor: float) -> str:
+        red, green, blue = self.hex_to_rgb(color)
+        return f"#{int(red * factor):02x}{int(green * factor):02x}{int(blue * factor):02x}"
+
+    def mix_hex(self, left: str, right: str, ratio: float) -> str:
+        left_rgb = self.hex_to_rgb(left)
+        right_rgb = self.hex_to_rgb(right)
+        values = [
+            int(left_rgb[index] + (right_rgb[index] - left_rgb[index]) * ratio)
+            for index in range(3)
+        ]
+        return f"#{values[0]:02x}{values[1]:02x}{values[2]:02x}"
+
+    @staticmethod
+    def hex_to_rgb(color: str) -> tuple[int, int, int]:
+        color = color.lstrip("#")
+        return int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
 BUTTON_OPTIONS = [
     "A",
     "B",
@@ -233,6 +344,8 @@ class KeyHoldApp:
         self.update_download_in_progress = False
         self.installing_update = False
         self.scroll_repaint_after_id = None
+        self.last_keyboard_active = None
+        self.last_macro_active = None
 
         self.build_ui()
         self.root.after(0, self.show_centered_window)
@@ -440,13 +553,7 @@ class KeyHoldApp:
         )
         header.pack(fill="x", padx=22, pady=(22, 14))
 
-        self.add_gradient_strip(
-            header,
-            [THEME["blue"], THEME["cyan"], THEME["green"]],
-            height=4,
-            padx=18,
-            pady=(16, 0),
-        )
+        self.add_accent_line(header, THEME["blue"], height=3, padx=18, pady=(16, 0))
 
         header_top = ctk.CTkFrame(header, fg_color="transparent")
         header_top.pack(fill="x", padx=18, pady=(12, 16))
@@ -612,13 +719,7 @@ class KeyHoldApp:
         )
         self.macro_nav_button.pack(side="left", fill="x", expand=True)
 
-        self.add_gradient_strip(
-            sidebar,
-            [THEME["blue"], THEME["green"]],
-            height=3,
-            padx=18,
-            pady=(18, 12),
-        )
+        self.add_accent_line(sidebar, THEME["blue"], height=3, padx=18, pady=(18, 12))
 
         update_card = ctk.CTkFrame(
             sidebar,
@@ -690,20 +791,13 @@ class KeyHoldApp:
         )
         self.content_area.pack(side="left", fill="both", expand=True)
 
-        self.workspace_gradient = ctk.CTkFrame(
+        self.workspace_accent = ctk.CTkFrame(
             self.content_area,
-            fg_color="transparent",
-            height=22,
+            fg_color=THEME["blue"],
+            height=4,
         )
-        self.workspace_gradient.pack(fill="x", padx=20, pady=(18, 0))
-        self.workspace_gradient.pack_propagate(False)
-        for color in ("#12336b", "#0f5f73", "#14532d"):
-            ctk.CTkFrame(self.workspace_gradient, fg_color=color, corner_radius=11).pack(
-                side="left",
-                fill="both",
-                expand=True,
-                padx=(0, 4),
-            )
+        self.workspace_accent.pack(fill="x", padx=20, pady=(18, 0))
+        self.workspace_accent.pack_propagate(False)
 
         self.keyboard_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
         self.macro_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
@@ -1314,17 +1408,10 @@ class KeyHoldApp:
         card.badge = badge
         return card
 
-    def add_gradient_strip(self, parent, colors: list[str], height: int, padx: int, pady) -> None:
-        strip = ctk.CTkFrame(parent, fg_color="transparent", height=height)
-        strip.pack(fill="x", padx=padx, pady=pady)
-        strip.pack_propagate(False)
-        for color in colors:
-            ctk.CTkFrame(strip, fg_color=color, corner_radius=height).pack(
-                side="left",
-                fill="both",
-                expand=True,
-                padx=(0, 2),
-            )
+    def add_accent_line(self, parent, color: str, height: int, padx: int, pady) -> None:
+        line = ctk.CTkFrame(parent, fg_color=color, height=height, corner_radius=height)
+        line.pack(fill="x", padx=padx, pady=pady)
+        line.pack_propagate(False)
 
     def add_tab_heading(self, parent, title_text: str, subtitle_text: str) -> None:
         heading = ctk.CTkFrame(parent, fg_color=THEME["panel_low"])
@@ -2104,13 +2191,37 @@ class KeyHoldApp:
         )
 
     def update_activity_indicators(self) -> None:
-        keyboard_color = THEME["red"] if self.is_holding else THEME["border"]
+        keyboard_active = self.is_holding
+        keyboard_color = THEME["red"] if keyboard_active else THEME["border"]
         macro_is_running = self.macro_running.is_set()
         macro_color = THEME["red"] if macro_is_running else THEME["border"]
-        self.keyboard_activity_indicator.configure(fg_color=keyboard_color)
-        self.macro_activity_indicator.configure(fg_color=macro_color)
+        self.update_activity_dot(
+            self.keyboard_activity_indicator,
+            keyboard_active,
+            keyboard_color,
+            "last_keyboard_active",
+        )
+        self.update_activity_dot(
+            self.macro_activity_indicator,
+            macro_is_running,
+            macro_color,
+            "last_macro_active",
+        )
         if hasattr(self, "live_progress_accent"):
             self.live_progress_accent.configure(fg_color=THEME["green"] if macro_is_running else THEME["blue"])
+
+    def update_activity_dot(self, widget, active: bool, color: str, state_name: str) -> None:
+        previous = getattr(self, state_name)
+        setattr(self, state_name, active)
+        if active and previous is not True:
+            self.animate_activity_dot(widget, color)
+            return
+        widget.configure(fg_color=color)
+
+    def animate_activity_dot(self, widget, color: str) -> None:
+        frames = [THEME["border"], "#f97316", color, "#f97316", color]
+        for index, frame_color in enumerate(frames):
+            self.root.after(index * 45, lambda value=frame_color: widget.configure(fg_color=value))
 
     def set_key_status(self, status: str, detail: str) -> None:
         self.key_status_var.set(status)
