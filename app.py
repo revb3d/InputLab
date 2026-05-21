@@ -25,8 +25,8 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.1.2"
-DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
+APP_VERSION = "1.1.3"
+DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
 BUTTON_OPTIONS = [
@@ -1870,6 +1870,7 @@ class KeyHoldApp:
                 headers={
                     "Cache-Control": "no-cache",
                     "Pragma": "no-cache",
+                    "User-Agent": "InputLab-Updater",
                 },
             )
             with urllib.request.urlopen(request, timeout=8) as response:
@@ -1895,9 +1896,7 @@ class KeyHoldApp:
             )
             return
 
-        latest_version = str(payload.get("version", "")).strip()
-        download_url = str(payload.get("download_url", "")).strip()
-        notes = str(payload.get("notes", "")).strip()
+        latest_version, download_url, notes = self.parse_update_payload(payload)
 
         if not latest_version:
             self.root.after(
@@ -1949,6 +1948,27 @@ class KeyHoldApp:
         self.update_check_in_progress = False
         self.check_updates_button.configure(state="normal", text="Check for updates")
         self.set_update_status(title, detail, has_download=bool(download_url))
+
+    @staticmethod
+    def parse_update_payload(payload: dict) -> tuple[str, str, str]:
+        latest_version = str(payload.get("version", "")).strip()
+        download_url = str(payload.get("download_url", "")).strip()
+        notes = str(payload.get("notes", "")).strip()
+
+        if latest_version:
+            return latest_version, download_url, notes
+
+        latest_version = str(payload.get("tag_name", "")).strip().lstrip("vV")
+        notes = str(payload.get("body", "")).strip()
+        for asset in payload.get("assets", []):
+            if not isinstance(asset, dict):
+                continue
+            asset_name = str(asset.get("name", "")).lower()
+            if asset_name == "inputlabsetup.exe":
+                download_url = str(asset.get("browser_download_url", "")).strip()
+                break
+
+        return latest_version, download_url, notes
 
     def download_and_install_update(self) -> None:
         if self.update_download_in_progress or not self.latest_download_url:
