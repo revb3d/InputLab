@@ -1,0 +1,5 @@
+{
+  "version": "1.0.1",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.0.1/KeyHoldToggleSetup.exe",
+  "notes": "Added the in-app update checker, scrollable layout, and live section activity indicators."
+}
