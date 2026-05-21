@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.0/InputLabSetup.exe",
-  "notes": "Redesigned the InputLab interface with a stronger dark control-panel theme, cleaner sidebar/header, action-block macro steps, improved live progress styling, and clearer active states."
+  "version": "1.2.1",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.1/InputLabSetup.exe",
+  "notes": "Added lightweight gradient accents, moved Updates back near the top of the sidebar, and reduced scroll lag by debouncing repaint work."
 }

@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -49,6 +49,7 @@ THEME = {
     "green_deep": "#14532d",
     "red": "#ef4444",
     "amber": "#f59e0b",
+    "cyan": "#22d3ee",
 }
 BUTTON_OPTIONS = [
     "A",
@@ -173,6 +174,7 @@ class KeyHoldApp:
         self.update_check_in_progress = False
         self.update_download_in_progress = False
         self.installing_update = False
+        self.scroll_repaint_after_id = None
 
         self.build_ui()
         self.root.after(0, self.show_centered_window)
@@ -380,8 +382,16 @@ class KeyHoldApp:
         )
         header.pack(fill="x", padx=22, pady=(22, 14))
 
+        self.add_gradient_strip(
+            header,
+            [THEME["blue"], THEME["cyan"], THEME["green"]],
+            height=4,
+            padx=18,
+            pady=(16, 0),
+        )
+
         header_top = ctk.CTkFrame(header, fg_color="transparent")
-        header_top.pack(fill="x", padx=18, pady=16)
+        header_top.pack(fill="x", padx=18, pady=(12, 16))
 
         if LOGO_PNG_PATH.exists():
             self.logo_image = ctk.CTkImage(
@@ -472,7 +482,7 @@ class KeyHoldApp:
             border_color=THEME["border_soft"],
             border_width=1,
         )
-        sidebar.pack(side="left", fill="y", padx=(0, 16))
+        sidebar.pack(side="left", anchor="n", padx=(0, 16))
         sidebar.pack_propagate(False)
 
         nav_title = ctk.CTkLabel(
@@ -544,6 +554,14 @@ class KeyHoldApp:
         )
         self.macro_nav_button.pack(side="left", fill="x", expand=True)
 
+        self.add_gradient_strip(
+            sidebar,
+            [THEME["blue"], THEME["green"]],
+            height=3,
+            padx=18,
+            pady=(18, 12),
+        )
+
         update_card = ctk.CTkFrame(
             sidebar,
             fg_color=THEME["panel"],
@@ -551,7 +569,7 @@ class KeyHoldApp:
             border_color=THEME["border_soft"],
             border_width=1,
         )
-        update_card.pack(side="bottom", fill="x", padx=14, pady=14)
+        update_card.pack(fill="x", padx=14, pady=(0, 14))
 
         ctk.CTkLabel(
             update_card,
@@ -640,8 +658,13 @@ class KeyHoldApp:
         self.repaint_after_scroll()
 
     def repaint_after_scroll(self) -> None:
+        if self.scroll_repaint_after_id is not None:
+            self.root.after_cancel(self.scroll_repaint_after_id)
+        self.scroll_repaint_after_id = self.root.after(45, self.finish_scroll_repaint)
+
+    def finish_scroll_repaint(self) -> None:
+        self.scroll_repaint_after_id = None
         self.body_canvas.update_idletasks()
-        self.root.after_idle(self.body_canvas.update_idletasks)
 
     @staticmethod
     def pointer_is_over_widget(widget) -> bool:
@@ -1223,6 +1246,18 @@ class KeyHoldApp:
 
         card.badge = badge
         return card
+
+    def add_gradient_strip(self, parent, colors: list[str], height: int, padx: int, pady) -> None:
+        strip = ctk.CTkFrame(parent, fg_color="transparent", height=height)
+        strip.pack(fill="x", padx=padx, pady=pady)
+        strip.pack_propagate(False)
+        for color in colors:
+            ctk.CTkFrame(strip, fg_color=color, corner_radius=height).pack(
+                side="left",
+                fill="both",
+                expand=True,
+                padx=(0, 2),
+            )
 
     def add_tab_heading(self, parent, title_text: str, subtitle_text: str) -> None:
         heading = ctk.CTkFrame(parent, fg_color=THEME["panel_low"])
