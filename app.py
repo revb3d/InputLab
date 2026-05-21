@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.1.7"
+APP_VERSION = "1.1.8"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -567,8 +567,8 @@ class KeyHoldApp:
         )
         self.content_area.pack(side="left", fill="both", expand=True)
 
-        self.keyboard_view = ctk.CTkFrame(self.content_area, fg_color="transparent")
-        self.macro_view = ctk.CTkFrame(self.content_area, fg_color="transparent")
+        self.keyboard_view = ctk.CTkFrame(self.content_area, fg_color="#0d131b")
+        self.macro_view = ctk.CTkFrame(self.content_area, fg_color="#0d131b")
 
         self.build_keyboard_tab(self.keyboard_view)
         self.build_macro_tab(self.macro_view)
@@ -590,6 +590,11 @@ class KeyHoldApp:
             return
 
         self.body_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        self.repaint_after_scroll()
+
+    def repaint_after_scroll(self) -> None:
+        self.body_canvas.update_idletasks()
+        self.root.after_idle(self.body_canvas.update_idletasks)
 
     @staticmethod
     def pointer_is_over_widget(widget) -> bool:
