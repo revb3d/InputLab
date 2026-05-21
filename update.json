@@ -1,5 +1,5 @@
 {
-  "version": "1.2.11",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.11/InputLabSetup.exe",
-  "notes": "Enabled proper Windows per-monitor DPI awareness so InputLab stays sharp on higher-resolution displays instead of appearing blurred."
+  "version": "1.2.12",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.12/InputLabSetup.exe",
+  "notes": "Fixed the startup view initialization so the first selected section renders immediately instead of showing an empty content panel until you click another section."
 }

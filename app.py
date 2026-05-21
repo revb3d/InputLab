@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.11"
+APP_VERSION = "1.2.12"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -546,7 +546,7 @@ class KeyHoldApp:
         self.macro_last_action_var = ctk.StringVar(value="Last action: None")
         self.macro_next_action_var = ctk.StringVar(value="Next action in: --")
         self.macro_loop_var = ctk.StringVar(value="Loop count: 0")
-        self.current_view = "keyboard"
+        self.current_view = ""
         self.update_status_var = ctk.StringVar(value=f"Version {APP_VERSION}")
         self.update_detail_var = ctk.StringVar(value="Update checks are manual.")
         self.latest_download_url = ""
