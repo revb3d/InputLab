@@ -1,5 +1,5 @@
 {
-  "version": "1.1.8",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.1.8/InputLabSetup.exe",
-  "notes": "Further reduced scroll echo by removing transparent tab backgrounds and forcing a redraw after wheel scrolling."
+  "version": "1.2.0",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.0/InputLabSetup.exe",
+  "notes": "Redesigned the InputLab interface with a stronger dark control-panel theme, cleaner sidebar/header, action-block macro steps, improved live progress styling, and clearer active states."
 }
