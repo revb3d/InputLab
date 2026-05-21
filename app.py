@@ -21,7 +21,7 @@ except ImportError:
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.8"
+APP_VERSION = "1.0.9"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -80,6 +80,7 @@ class KeyHoldApp:
         self.apply_windows_app_id()
 
         self.root = ctk.CTk()
+        self.root.withdraw()
         self.root.title("InputLab")
         self.root.geometry("1180x760")
         self.root.minsize(980, 700)
@@ -126,7 +127,7 @@ class KeyHoldApp:
         self.installing_update = False
 
         self.build_ui()
-        self.center_window()
+        self.root.after(0, self.show_centered_window)
         self.register_key_hold_hotkey(self.toggle_hotkey)
         self.register_macro_hotkey(self.macro_hotkey)
         self.root.after(1200, self.auto_check_for_updates)
@@ -897,13 +898,19 @@ class KeyHoldApp:
 
     def center_window(self) -> None:
         self.root.update_idletasks()
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
+        width = max(self.root.winfo_width(), self.root.winfo_reqwidth())
+        height = max(self.root.winfo_height(), self.root.winfo_reqheight())
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         x = max((screen_width - width) // 2, 0)
         y = max((screen_height - height) // 2, 0)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
+
+    def show_centered_window(self) -> None:
+        self.center_window()
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
 
     def register_key_hold_hotkey(self, hotkey: str) -> None:
         if self.key_hold_hotkey_handle is not None:
