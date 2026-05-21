@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.2.2"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -51,6 +51,64 @@ THEME = {
     "amber": "#f59e0b",
     "cyan": "#22d3ee",
 }
+
+
+class GradientButton(tk.Canvas):
+    def __init__(
+        self,
+        parent,
+        text: str,
+        command,
+        colors: tuple[str, str],
+        hover_colors: tuple[str, str],
+        width: int = 174,
+        height: int = 48,
+    ) -> None:
+        super().__init__(
+            parent,
+            width=width,
+            height=height,
+            bd=0,
+            highlightthickness=0,
+            relief="flat",
+            cursor="hand2",
+        )
+        self.text = text
+        self.command = command
+        self.colors = colors
+        self.hover_colors = hover_colors
+        self.button_width = width
+        self.button_height = height
+        self.bind("<Button-1>", lambda _event: self.command())
+        self.bind("<Enter>", lambda _event: self.draw(self.hover_colors))
+        self.bind("<Leave>", lambda _event: self.draw(self.colors))
+        self.draw(self.colors)
+
+    def draw(self, colors: tuple[str, str]) -> None:
+        self.delete("all")
+        left = self.winfo_rgb(colors[0])
+        right = self.winfo_rgb(colors[1])
+        for x in range(self.button_width):
+            ratio = x / max(self.button_width - 1, 1)
+            red = int((left[0] + (right[0] - left[0]) * ratio) / 256)
+            green = int((left[1] + (right[1] - left[1]) * ratio) / 256)
+            blue = int((left[2] + (right[2] - left[2]) * ratio) / 256)
+            self.create_line(x, 0, x, self.button_height, fill=f"#{red:02x}{green:02x}{blue:02x}")
+        self.create_rectangle(
+            0,
+            0,
+            self.button_width - 1,
+            self.button_height - 1,
+            outline="#6ea8ff",
+            width=1,
+        )
+        self.create_text(
+            self.button_width // 2,
+            self.button_height // 2,
+            text=self.text,
+            fill=THEME["text"],
+            font=("Segoe UI Semibold", 15, "bold"),
+        )
 BUTTON_OPTIONS = [
     "A",
     "B",
@@ -482,7 +540,7 @@ class KeyHoldApp:
             border_color=THEME["border_soft"],
             border_width=1,
         )
-        sidebar.pack(side="left", anchor="n", padx=(0, 16))
+        sidebar.pack(side="left", fill="y", padx=(0, 16))
         sidebar.pack_propagate(False)
 
         nav_title = ctk.CTkLabel(
@@ -632,6 +690,21 @@ class KeyHoldApp:
         )
         self.content_area.pack(side="left", fill="both", expand=True)
 
+        self.workspace_gradient = ctk.CTkFrame(
+            self.content_area,
+            fg_color="transparent",
+            height=22,
+        )
+        self.workspace_gradient.pack(fill="x", padx=20, pady=(18, 0))
+        self.workspace_gradient.pack_propagate(False)
+        for color in ("#12336b", "#0f5f73", "#14532d"):
+            ctk.CTkFrame(self.workspace_gradient, fg_color=color, corner_radius=11).pack(
+                side="left",
+                fill="both",
+                expand=True,
+                padx=(0, 4),
+            )
+
         self.keyboard_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
         self.macro_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
 
@@ -760,16 +833,14 @@ class KeyHoldApp:
         actions = ctk.CTkFrame(tab, fg_color="transparent")
         actions.pack(fill="x", padx=20, pady=(0, 8))
 
-        apply_button = ctk.CTkButton(
+        apply_button = GradientButton(
             actions,
             text="Apply Keyboard Mapping",
-            height=46,
-            corner_radius=16,
-            fg_color=THEME["blue"],
-            hover_color=THEME["blue_hover"],
-            text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
             command=self.apply_keyboard_mapping,
+            colors=(THEME["blue"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["cyan"]),
+            width=260,
+            height=48,
         )
         apply_button.pack(side="left")
 
@@ -1153,29 +1224,25 @@ class KeyHoldApp:
         actions = ctk.CTkFrame(macro_config_column, fg_color="transparent")
         actions.pack(fill="x", pady=(0, 8))
 
-        apply_button = ctk.CTkButton(
+        apply_button = GradientButton(
             actions,
             text="Apply Macro",
-            height=46,
-            corner_radius=16,
-            fg_color=THEME["blue"],
-            hover_color=THEME["blue_hover"],
-            text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
             command=self.apply_macro_mapping,
+            colors=(THEME["blue"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["cyan"]),
+            width=174,
+            height=48,
         )
         apply_button.pack(side="left")
 
-        start_button = ctk.CTkButton(
+        start_button = GradientButton(
             actions,
             text="Start Macro",
-            height=46,
-            corner_radius=16,
-            fg_color=THEME["green_deep"],
-            hover_color=THEME["green"],
-            text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
             command=self.start_macro,
+            colors=(THEME["green_deep"], THEME["green"]),
+            hover_colors=("#15803d", "#22c55e"),
+            width=174,
+            height=48,
         )
         start_button.pack(side="left", padx=(12, 0))
 

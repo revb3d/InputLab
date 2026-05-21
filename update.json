@@ -1,5 +1,5 @@
 {
-  "version": "1.2.1",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.1/InputLabSetup.exe",
-  "notes": "Added lightweight gradient accents, moved Updates back near the top of the sidebar, and reduced scroll lag by debouncing repaint work."
+  "version": "1.2.2",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.2/InputLabSetup.exe",
+  "notes": "Made gradients more visible with a workspace gradient wash and gradient-rendered primary action buttons, while restoring the Updates card visibility in the sidebar."
 }
