@@ -8,6 +8,7 @@ import tkinter as tk
 import urllib.error
 import urllib.request
 import uuid
+from ctypes import wintypes
 from pathlib import Path
 from tkinter import filedialog
 
@@ -25,7 +26,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.17"
+APP_VERSION = "1.2.18"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -476,6 +477,7 @@ def build_macro_profile(
     hotkey: str = "f3",
     interval_seconds: float = 78,
     steps: list[dict] | None = None,
+    run_condition: dict | None = None,
 ) -> dict:
     return {
         "id": profile_id,
@@ -483,6 +485,10 @@ def build_macro_profile(
         "hotkey": hotkey,
         "interval_seconds": interval_seconds,
         "steps": [step.copy() for step in (steps if steps is not None else default_macro_steps())],
+        "run_condition": {
+            "window_title": str((run_condition or {}).get("window_title", "")).strip(),
+            "process_name": str((run_condition or {}).get("process_name", "")).strip().lower(),
+        },
     }
 
 
@@ -569,6 +575,7 @@ class KeyHoldApp:
         self.ui_root = None
         self.section_transition_after_ids = []
         self.body_canvas_last_width = 0
+        self.window_capture_after_id = None
 
         self.build_ui()
         self.root.after(0, self.show_centered_window)
@@ -583,6 +590,7 @@ class KeyHoldApp:
         config["macro_profiles"] = [profile.copy() for profile in DEFAULT_CONFIG["macro_profiles"]]
         for profile in config["macro_profiles"]:
             profile["steps"] = [step.copy() for step in profile["steps"]]
+            profile["run_condition"] = profile["run_condition"].copy()
 
         self.ensure_user_data_dir()
 
@@ -615,6 +623,7 @@ class KeyHoldApp:
         config["macro_profiles"] = [profile.copy() for profile in DEFAULT_CONFIG["macro_profiles"]]
         for profile in config["macro_profiles"]:
             profile["steps"] = [step.copy() for step in profile["steps"]]
+            profile["run_condition"] = profile["run_condition"].copy()
 
         config["toggle_hotkey"] = str(raw_data.get("toggle_hotkey", config["toggle_hotkey"])).lower()
         config["target_key"] = str(raw_data.get("target_key", config["target_key"])).lower()
@@ -700,6 +709,11 @@ class KeyHoldApp:
 
             if hasattr(self, "macro_step_widgets"):
                 profile["steps"] = self.collect_macro_steps(include_blank_steps=True)
+            if hasattr(self, "macro_window_title_entry"):
+                profile["run_condition"] = {
+                    "window_title": self.macro_window_title_entry.get().strip(),
+                    "process_name": self.macro_process_name_entry.get().strip().lower(),
+                }
 
             self.sync_active_profile_fields()
 
@@ -736,7 +750,10 @@ class KeyHoldApp:
         hotkey = str(raw_profile.get("hotkey", "f3")).strip().lower()
         interval_seconds = self.safe_float(raw_profile.get("interval_seconds"), 78)
         steps = self.normalize_macro_steps(raw_profile.get("steps", []))
-        return build_macro_profile(profile_id, profile_name, hotkey, interval_seconds, steps)
+        run_condition = raw_profile.get("run_condition", {})
+        if not isinstance(run_condition, dict):
+            run_condition = {}
+        return build_macro_profile(profile_id, profile_name, hotkey, interval_seconds, steps, run_condition)
 
     def get_profile_by_id(self, profile_id: str) -> dict:
         for profile in self.macro_profiles:
@@ -752,6 +769,7 @@ class KeyHoldApp:
         self.macro_hotkey = profile["hotkey"]
         self.macro_interval_seconds = profile["interval_seconds"]
         self.macro_steps = [step.copy() for step in profile["steps"]]
+        self.macro_run_condition = profile["run_condition"].copy()
 
     def build_new_profile(self, name: str | None = None) -> dict:
         profile_number = len(self.macro_profiles) + 1
@@ -1608,6 +1626,60 @@ class KeyHoldApp:
             entry_width=300,
         )
 
+        condition_card = ctk.CTkFrame(setup, fg_color=THEME["panel"])
+        condition_card.pack(fill="x", padx=18, pady=(0, 14))
+
+        ctk.CTkLabel(
+            condition_card,
+            text="Run only when focused app matches",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            text_color=THEME["text"],
+        ).pack(anchor="w", pady=(4, 8))
+
+        self.macro_window_title_entry = self.add_labeled_entry(
+            condition_card,
+            "Window title",
+            "Optional: Forza",
+            self.macro_run_condition["window_title"],
+            expand_entry=False,
+            entry_width=300,
+        )
+
+        self.macro_process_name_entry = self.add_labeled_entry(
+            condition_card,
+            "Process name",
+            "Optional: forza.exe",
+            self.macro_run_condition["process_name"],
+            expand_entry=False,
+            entry_width=300,
+        )
+
+        capture_actions = ctk.CTkFrame(condition_card, fg_color=THEME["panel"])
+        capture_actions.pack(fill="x", pady=(0, 4))
+
+        self.capture_window_button = ctk.CTkButton(
+            capture_actions,
+            text="Capture In 3s",
+            height=38,
+            corner_radius=12,
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color=THEME["text"],
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.arm_window_capture,
+        )
+        self.capture_window_button.pack(side="left", padx=(18, 0))
+
+        condition_hint = ctk.CTkLabel(
+            condition_card,
+            text="Leave both blank to let the profile run anywhere. If you use Capture In 3s, tab into the game before the countdown finishes.",
+            font=ctk.CTkFont(family="Segoe UI", size=12),
+            text_color=THEME["muted"],
+            wraplength=560,
+            justify="left",
+        )
+        condition_hint.pack(anchor="w", padx=18, pady=(10, 4))
+
         macro_hint = ctk.CTkLabel(
             setup,
             text="Each step presses one virtual Xbox button, waits, releases it, then waits again before the next step. After the full sequence finishes, the macro waits for the loop interval before starting over.",
@@ -2312,6 +2384,113 @@ class KeyHoldApp:
             keyboard.unhook(self.capture_target_hook)
             self.capture_target_hook = None
 
+    def arm_window_capture(self) -> None:
+        if self.window_capture_after_id is not None:
+            self.root.after_cancel(self.window_capture_after_id)
+            self.window_capture_after_id = None
+
+        self.capture_window_button.configure(state="disabled", text="Capturing...")
+        self.set_macro_status(
+            "Window capture",
+            "Switch to the game or app now. InputLab will capture the focused window in 3 seconds.",
+        )
+        self.root.iconify()
+        self.window_capture_after_id = self.root.after(3000, self.capture_foreground_window_condition)
+
+    def capture_foreground_window_condition(self) -> None:
+        self.window_capture_after_id = None
+        window_title, process_name = self.get_foreground_window_info()
+        self.root.deiconify()
+        self.root.lift()
+        try:
+            self.root.focus_force()
+        except Exception:
+            pass
+
+        self.capture_window_button.configure(state="normal", text="Capture In 3s")
+
+        if not window_title and not process_name:
+            self.set_macro_status(
+                "Window capture failed",
+                "InputLab could not read the focused app. Try again after opening the game window first.",
+            )
+            return
+
+        self.macro_window_title_entry.delete(0, "end")
+        self.macro_window_title_entry.insert(0, window_title)
+        self.macro_process_name_entry.delete(0, "end")
+        self.macro_process_name_entry.insert(0, process_name)
+        self.sync_config_from_ui()
+        self.save_config()
+        self.set_macro_status(
+            "Window captured",
+            f"Saved a run condition for {process_name or 'the selected app'} so this profile only starts when that window is focused.",
+        )
+
+    def get_foreground_window_info(self) -> tuple[str, str]:
+        try:
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+            hwnd = user32.GetForegroundWindow()
+            if not hwnd:
+                return "", ""
+
+            title_length = user32.GetWindowTextLengthW(hwnd)
+            title_buffer = ctypes.create_unicode_buffer(title_length + 1)
+            user32.GetWindowTextW(hwnd, title_buffer, len(title_buffer))
+            window_title = title_buffer.value.strip()
+
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            process_name = ""
+            if pid.value:
+                process_handle = kernel32.OpenProcess(0x1000, False, pid.value)
+                if process_handle:
+                    try:
+                        size = wintypes.DWORD(1024)
+                        path_buffer = ctypes.create_unicode_buffer(size.value)
+                        query_image_name = kernel32.QueryFullProcessImageNameW
+                        query_image_name.argtypes = [
+                            wintypes.HANDLE,
+                            wintypes.DWORD,
+                            wintypes.LPWSTR,
+                            ctypes.POINTER(wintypes.DWORD),
+                        ]
+                        query_image_name.restype = wintypes.BOOL
+                        if query_image_name(process_handle, 0, path_buffer, ctypes.byref(size)):
+                            process_name = Path(path_buffer.value).name.lower()
+                    finally:
+                        kernel32.CloseHandle(process_handle)
+
+            return window_title, process_name
+        except Exception:
+            return "", ""
+
+    def check_profile_run_condition(self, profile: dict) -> tuple[bool, str]:
+        run_condition = profile.get("run_condition", {})
+        expected_title = str(run_condition.get("window_title", "")).strip().lower()
+        expected_process = str(run_condition.get("process_name", "")).strip().lower()
+        if not expected_title and not expected_process:
+            return True, ""
+
+        active_title, active_process = self.get_foreground_window_info()
+        active_title_lower = active_title.lower()
+        active_process_lower = active_process.lower()
+
+        if expected_title and expected_title not in active_title_lower:
+            return (
+                False,
+                f"{profile['name']} only runs when a window title containing \"{run_condition['window_title']}\" is focused. Current window: {active_title or 'Unknown'}.",
+            )
+
+        if expected_process and expected_process not in active_process_lower:
+            return (
+                False,
+                f"{profile['name']} only runs when a process containing \"{run_condition['process_name']}\" is focused. Current process: {active_process or 'Unknown'}.",
+            )
+
+        return True, ""
+
     def apply_keyboard_mapping(self) -> None:
         new_hotkey = self.hotkey_entry.get().strip().lower()
         new_target = self.key_entry.get().strip().lower()
@@ -2372,6 +2551,10 @@ class KeyHoldApp:
         self.profile_name_entry.insert(0, profile["name"])
         self.macro_hotkey_entry.delete(0, "end")
         self.macro_hotkey_entry.insert(0, profile["hotkey"])
+        self.macro_window_title_entry.delete(0, "end")
+        self.macro_window_title_entry.insert(0, profile["run_condition"]["window_title"])
+        self.macro_process_name_entry.delete(0, "end")
+        self.macro_process_name_entry.insert(0, profile["run_condition"]["process_name"])
         self.macro_interval_entry.delete(0, "end")
         self.macro_interval_entry.insert(0, f"{profile['interval_seconds']:g}")
 
@@ -2427,6 +2610,7 @@ class KeyHoldApp:
             hotkey=self.next_available_macro_hotkey(),
             interval_seconds=current_profile["interval_seconds"],
             steps=current_profile["steps"],
+            run_condition=current_profile["run_condition"],
         )
 
         self.macro_profiles.append(duplicate_profile)
@@ -2448,6 +2632,7 @@ class KeyHoldApp:
         current_profile["hotkey"] = self.next_available_macro_hotkey(current_profile["id"]) or current_profile["hotkey"]
         current_profile["interval_seconds"] = 78
         current_profile["steps"] = default_macro_steps()
+        current_profile["run_condition"] = {"window_title": "", "process_name": ""}
         self.load_selected_profile_into_editor()
         self.save_config()
         self.register_macro_hotkeys()
@@ -2737,6 +2922,11 @@ class KeyHoldApp:
 
         if not active_steps:
             self.set_macro_status("No steps", "Add at least one controller button step before starting the macro.")
+            return
+
+        condition_ok, condition_message = self.check_profile_run_condition(target_profile)
+        if not condition_ok:
+            self.set_macro_status("Window mismatch", condition_message)
             return
 
         if not self.ensure_gamepad():
@@ -3308,6 +3498,10 @@ class KeyHoldApp:
             "Step added": "#1d4ed8",
             "Step removed": THEME["field"],
             "Theme changed": "#1d4ed8",
+            "Window capture": "#4338ca",
+            "Window captured": "#1d4ed8",
+            "Window capture failed": "#7c2d12",
+            "Window mismatch": "#7c2d12",
             "Driver needed": "#7c2d12",
             "Invalid hotkey": "#7c2d12",
             "Invalid macro": "#7c2d12",
@@ -3328,6 +3522,10 @@ class KeyHoldApp:
         self.save_config()
         self.stop_macro()
         self.force_release()
+
+        if self.window_capture_after_id is not None:
+            self.root.after_cancel(self.window_capture_after_id)
+            self.window_capture_after_id = None
 
         if self.capture_target_hook is not None:
             keyboard.unhook(self.capture_target_hook)
