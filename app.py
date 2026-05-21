@@ -7,7 +7,9 @@ import time
 import tkinter as tk
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
+from tkinter import filedialog
 
 import customtkinter as ctk
 import keyboard
@@ -23,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.11"
+APP_VERSION = "1.1.0"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -61,16 +63,37 @@ BUTTON_ENUM_NAMES = {
     "DPAD_LEFT": "XUSB_GAMEPAD_DPAD_LEFT",
     "DPAD_RIGHT": "XUSB_GAMEPAD_DPAD_RIGHT",
 }
-DEFAULT_CONFIG = {
-    "toggle_hotkey": "f2",
-    "target_key": "w",
-    "macro_hotkey": "f3",
-    "macro_interval_seconds": 78,
-    "macro_steps": [
+def default_macro_steps() -> list[dict]:
+    return [
         {"button": "X", "hold_ms": 100, "delay_ms": 1000},
         {"button": "A", "hold_ms": 90, "delay_ms": 13000},
         {"button": "A", "hold_ms": 90, "delay_ms": 1000},
         {"button": "A", "hold_ms": 90, "delay_ms": 1000},
+    ]
+
+
+def build_macro_profile(
+    profile_id: str,
+    name: str,
+    hotkey: str = "f3",
+    interval_seconds: float = 78,
+    steps: list[dict] | None = None,
+) -> dict:
+    return {
+        "id": profile_id,
+        "name": name,
+        "hotkey": hotkey,
+        "interval_seconds": interval_seconds,
+        "steps": [step.copy() for step in (steps if steps is not None else default_macro_steps())],
+    }
+
+
+DEFAULT_CONFIG = {
+    "toggle_hotkey": "f2",
+    "target_key": "w",
+    "selected_macro_profile_id": "main",
+    "macro_profiles": [
+        build_macro_profile("main", "Main Macro"),
     ],
 }
 
@@ -94,15 +117,17 @@ class KeyHoldApp:
         self.config = self.load_config()
         self.toggle_hotkey = self.config["toggle_hotkey"]
         self.target_key = self.config["target_key"]
-        self.macro_hotkey = self.config["macro_hotkey"]
-        self.macro_interval_seconds = self.config["macro_interval_seconds"]
         self.update_manifest_url = DEFAULT_UPDATE_MANIFEST_URL
-        self.macro_steps = self.config["macro_steps"]
+        self.macro_profiles = self.config["macro_profiles"]
+        self.selected_macro_profile_id = self.config["selected_macro_profile_id"]
+        self.active_macro_profile_id = ""
+        self.profile_editor_ready = False
+        self.sync_active_profile_fields()
 
         self.is_holding = False
         self.capture_target_hook = None
         self.key_hold_hotkey_handle = None
-        self.macro_hotkey_handle = None
+        self.macro_hotkey_handles = {}
 
         self.virtual_gamepad = None
         self.macro_thread = None
@@ -114,7 +139,7 @@ class KeyHoldApp:
         )
         self.macro_status_var = ctk.StringVar(value="Ready")
         self.macro_detail_var = ctk.StringVar(
-            value=f"Press {self.macro_hotkey.upper()} to start or stop the controller macro."
+            value=f"Press {self.macro_hotkey.upper()} to start or stop the {self.get_selected_profile()['name']} controller macro."
         )
         self.macro_current_step_var = ctk.StringVar(value="Current step: None")
         self.macro_last_action_var = ctk.StringVar(value="Last action: None")
@@ -131,14 +156,16 @@ class KeyHoldApp:
         self.build_ui()
         self.root.after(0, self.show_centered_window)
         self.register_key_hold_hotkey(self.toggle_hotkey)
-        self.register_macro_hotkey(self.macro_hotkey)
+        self.register_macro_hotkeys()
         self.root.after(1200, self.auto_check_for_updates)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
     def load_config(self) -> dict:
         config = DEFAULT_CONFIG.copy()
-        config["macro_steps"] = [step.copy() for step in DEFAULT_CONFIG["macro_steps"]]
+        config["macro_profiles"] = [profile.copy() for profile in DEFAULT_CONFIG["macro_profiles"]]
+        for profile in config["macro_profiles"]:
+            profile["steps"] = [step.copy() for step in profile["steps"]]
 
         self.ensure_user_data_dir()
 
@@ -168,27 +195,37 @@ class KeyHoldApp:
             return None
 
         config = DEFAULT_CONFIG.copy()
-        config["macro_steps"] = [step.copy() for step in DEFAULT_CONFIG["macro_steps"]]
+        config["macro_profiles"] = [profile.copy() for profile in DEFAULT_CONFIG["macro_profiles"]]
+        for profile in config["macro_profiles"]:
+            profile["steps"] = [step.copy() for step in profile["steps"]]
 
         config["toggle_hotkey"] = str(raw_data.get("toggle_hotkey", config["toggle_hotkey"])).lower()
         config["target_key"] = str(raw_data.get("target_key", config["target_key"])).lower()
-        config["macro_hotkey"] = str(raw_data.get("macro_hotkey", config["macro_hotkey"])).lower()
-        config["macro_interval_seconds"] = self.safe_float(
-            raw_data.get("macro_interval_seconds"),
-            config["macro_interval_seconds"],
-        )
-        loaded_steps = raw_data.get("macro_steps", [])
-        normalized_steps = []
-        for index in range(4):
-            base_step = DEFAULT_CONFIG["macro_steps"][index].copy()
-            if index < len(loaded_steps) and isinstance(loaded_steps[index], dict):
-                loaded_step = loaded_steps[index]
-                base_step["button"] = str(loaded_step.get("button", base_step["button"])).upper()
-                base_step["hold_ms"] = self.safe_int(loaded_step.get("hold_ms"), base_step["hold_ms"])
-                base_step["delay_ms"] = self.safe_int(loaded_step.get("delay_ms"), base_step["delay_ms"])
-            normalized_steps.append(base_step)
+        raw_profiles = raw_data.get("macro_profiles")
+        normalized_profiles = []
+        if isinstance(raw_profiles, list) and raw_profiles:
+            for index, raw_profile in enumerate(raw_profiles, start=1):
+                normalized = self.normalize_macro_profile(raw_profile, index)
+                if normalized is not None:
+                    normalized_profiles.append(normalized)
 
-        config["macro_steps"] = normalized_steps
+        if not normalized_profiles:
+            legacy_steps = self.normalize_macro_steps(raw_data.get("macro_steps", []))
+            normalized_profiles = [
+                build_macro_profile(
+                    "main",
+                    "Main Macro",
+                    hotkey=str(raw_data.get("macro_hotkey", "f3")).lower(),
+                    interval_seconds=self.safe_float(raw_data.get("macro_interval_seconds"), 78),
+                    steps=legacy_steps,
+                )
+            ]
+
+        config["macro_profiles"] = normalized_profiles
+        selected_profile_id = str(raw_data.get("selected_macro_profile_id", normalized_profiles[0]["id"])).strip()
+        if not any(profile["id"] == selected_profile_id for profile in normalized_profiles):
+            selected_profile_id = normalized_profiles[0]["id"]
+        config["selected_macro_profile_id"] = selected_profile_id
         return config
 
     def ensure_user_data_dir(self) -> None:
@@ -200,12 +237,15 @@ class KeyHoldApp:
 
     def save_config(self) -> None:
         self.sync_config_from_ui()
+        selected_profile = self.get_selected_profile()
         payload = {
             "toggle_hotkey": self.toggle_hotkey,
             "target_key": self.target_key,
-            "macro_hotkey": self.macro_hotkey,
-            "macro_interval_seconds": self.macro_interval_seconds,
-            "macro_steps": self.macro_steps,
+            "selected_macro_profile_id": self.selected_macro_profile_id,
+            "macro_profiles": self.macro_profiles,
+            "macro_hotkey": selected_profile["hotkey"],
+            "macro_interval_seconds": selected_profile["interval_seconds"],
+            "macro_steps": selected_profile["steps"],
         }
         self.write_config_payload(payload)
 
@@ -220,21 +260,73 @@ class KeyHoldApp:
             if typed_target:
                 self.target_key = typed_target
 
-        if hasattr(self, "macro_hotkey_entry"):
+        if self.profile_editor_ready and hasattr(self, "macro_hotkey_entry"):
+            profile = self.get_selected_profile()
+            typed_name = self.profile_name_entry.get().strip()
+            if typed_name:
+                profile["name"] = typed_name
+
             typed_macro_hotkey = self.macro_hotkey_entry.get().strip().lower()
             if typed_macro_hotkey:
-                self.macro_hotkey = typed_macro_hotkey
+                profile["hotkey"] = typed_macro_hotkey
 
-        if hasattr(self, "macro_interval_entry"):
             typed_interval = self.macro_interval_entry.get().strip()
             if typed_interval:
-                self.macro_interval_seconds = self.safe_float(
+                profile["interval_seconds"] = self.safe_float(
                     typed_interval,
-                    self.macro_interval_seconds,
+                    profile["interval_seconds"],
                 )
 
-        if hasattr(self, "macro_step_widgets"):
-            self.macro_steps = self.collect_macro_steps(include_blank_steps=True)
+            if hasattr(self, "macro_step_widgets"):
+                profile["steps"] = self.collect_macro_steps(include_blank_steps=True)
+
+            self.sync_active_profile_fields()
+
+    def normalize_macro_steps(self, raw_steps) -> list[dict]:
+        normalized_steps = []
+        for index in range(4):
+            base_step = default_macro_steps()[index].copy()
+            if index < len(raw_steps) and isinstance(raw_steps[index], dict):
+                loaded_step = raw_steps[index]
+                base_step["button"] = str(loaded_step.get("button", base_step["button"])).upper()
+                base_step["hold_ms"] = self.safe_int(loaded_step.get("hold_ms"), base_step["hold_ms"])
+                base_step["delay_ms"] = self.safe_int(loaded_step.get("delay_ms"), base_step["delay_ms"])
+            normalized_steps.append(base_step)
+        return normalized_steps
+
+    def normalize_macro_profile(self, raw_profile, index: int) -> dict | None:
+        if not isinstance(raw_profile, dict):
+            return None
+
+        profile_id = str(raw_profile.get("id", "")).strip() or f"profile-{index}"
+        profile_name = str(raw_profile.get("name", "")).strip() or f"Profile {index}"
+        hotkey = str(raw_profile.get("hotkey", "f3")).strip().lower()
+        interval_seconds = self.safe_float(raw_profile.get("interval_seconds"), 78)
+        steps = self.normalize_macro_steps(raw_profile.get("steps", []))
+        return build_macro_profile(profile_id, profile_name, hotkey, interval_seconds, steps)
+
+    def get_profile_by_id(self, profile_id: str) -> dict:
+        for profile in self.macro_profiles:
+            if profile["id"] == profile_id:
+                return profile
+        return self.macro_profiles[0]
+
+    def get_selected_profile(self) -> dict:
+        return self.get_profile_by_id(self.selected_macro_profile_id)
+
+    def sync_active_profile_fields(self) -> None:
+        profile = self.get_selected_profile()
+        self.macro_hotkey = profile["hotkey"]
+        self.macro_interval_seconds = profile["interval_seconds"]
+        self.macro_steps = [step.copy() for step in profile["steps"]]
+
+    def build_new_profile(self, name: str | None = None) -> dict:
+        profile_number = len(self.macro_profiles) + 1
+        return build_macro_profile(
+            uuid.uuid4().hex,
+            name or f"Profile {profile_number}",
+            hotkey=f"f{min(12, 2 + profile_number)}",
+        )
 
     def build_ui(self) -> None:
         outer = ctk.CTkFrame(
@@ -595,11 +687,92 @@ class KeyHoldApp:
         )
         status_card.pack(fill="x", padx=20, pady=(20, 16))
 
-        macro_body = ctk.CTkFrame(tab, fg_color="transparent")
-        macro_body.pack(fill="x", padx=20, pady=(0, 16), anchor="w")
+        profile_section = self.build_section_frame(tab)
+        profile_section.pack(fill="x", padx=20, pady=(0, 16))
 
-        macro_config_column = ctk.CTkFrame(macro_body, fg_color="transparent")
+        ctk.CTkLabel(
+            profile_section,
+            text="Profiles",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            text_color="#e7edf7",
+        ).pack(anchor="w", padx=18, pady=(16, 10))
+
+        self.profile_tabs = ctk.CTkSegmentedButton(
+            profile_section,
+            height=38,
+            corner_radius=12,
+            fg_color="#121926",
+            selected_color="#14532d",
+            selected_hover_color="#1a6a39",
+            unselected_color="#182131",
+            unselected_hover_color="#273347",
+            text_color="#dce7f8",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.on_profile_tab_selected,
+        )
+        self.profile_tabs.pack(fill="x", padx=18, pady=(0, 10))
+
+        profile_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
+        profile_actions.pack(fill="x", padx=18, pady=(0, 16))
+
+        self.add_profile_button = ctk.CTkButton(
+            profile_actions,
+            text="Add Profile",
+            height=38,
+            corner_radius=12,
+            fg_color="#182131",
+            hover_color="#273347",
+            text_color="#f8fbff",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.add_macro_profile,
+        )
+        self.add_profile_button.pack(side="left")
+
+        self.delete_profile_button = ctk.CTkButton(
+            profile_actions,
+            text="Delete Profile",
+            height=38,
+            corner_radius=12,
+            fg_color="#182131",
+            hover_color="#273347",
+            text_color="#f8fbff",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.delete_macro_profile,
+        )
+        self.delete_profile_button.pack(side="left", padx=(10, 0))
+
+        self.export_profiles_button = ctk.CTkButton(
+            profile_actions,
+            text="Export Profiles",
+            height=38,
+            corner_radius=12,
+            fg_color="#182131",
+            hover_color="#273347",
+            text_color="#f8fbff",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.export_macro_profiles,
+        )
+        self.export_profiles_button.pack(side="right")
+
+        self.import_profiles_button = ctk.CTkButton(
+            profile_actions,
+            text="Import Profiles",
+            height=38,
+            corner_radius=12,
+            fg_color="#182131",
+            hover_color="#273347",
+            text_color="#f8fbff",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            command=self.import_macro_profiles,
+        )
+        self.import_profiles_button.pack(side="right", padx=(0, 10))
+
+        macro_body = ctk.CTkFrame(tab, fg_color="transparent")
+        macro_body.pack(padx=20, pady=(0, 16), anchor="w")
+
+        macro_config_column = ctk.CTkFrame(macro_body, fg_color="transparent", width=920)
         macro_config_column.pack(side="left", fill="y", padx=(0, 12), anchor="n")
+        macro_config_column.pack_propagate(False)
 
         progress_column = ctk.CTkFrame(macro_body, fg_color="transparent", width=300)
         progress_column.pack(side="left", fill="y", anchor="n")
@@ -607,6 +780,15 @@ class KeyHoldApp:
 
         setup = self.build_section_frame(macro_config_column)
         setup.pack(fill="x", pady=(0, 16))
+
+        self.profile_name_entry = self.add_labeled_entry(
+            setup,
+            "Profile name",
+            "Example: Farm Route 1",
+            self.get_selected_profile()["name"],
+            expand_entry=False,
+            entry_width=300,
+        )
 
         self.macro_hotkey_entry = self.add_labeled_entry(
             setup,
@@ -630,6 +812,8 @@ class KeyHoldApp:
             text="Each step presses one virtual Xbox button, waits, releases it, then waits again before the next step. After the full sequence finishes, the macro waits for the loop interval before starting over.",
             font=ctk.CTkFont(family="Segoe UI", size=12),
             text_color="#7f8ca3",
+            wraplength=820,
+            justify="left",
         )
         macro_hint.pack(anchor="w", padx=18, pady=(0, 10))
 
@@ -822,6 +1006,9 @@ class KeyHoldApp:
         driver_note.pack(anchor="w", padx=24, pady=(6, 0))
 
         self.macro_status_badge = status_card.badge
+        self.profile_editor_ready = True
+        self.refresh_profile_tabs()
+        self.load_selected_profile_into_editor()
         self.update_macro_status()
 
     def build_status_card(self, parent, status_var, detail_var):
@@ -955,17 +1142,21 @@ class KeyHoldApp:
             trigger_on_release=False,
         )
 
-    def register_macro_hotkey(self, hotkey: str) -> None:
-        if self.macro_hotkey_handle is not None:
-            keyboard.remove_hotkey(self.macro_hotkey_handle)
-            self.macro_hotkey_handle = None
+    def register_macro_hotkeys(self) -> None:
+        for handle in self.macro_hotkey_handles.values():
+            keyboard.remove_hotkey(handle)
+        self.macro_hotkey_handles = {}
 
-        self.macro_hotkey_handle = keyboard.add_hotkey(
-            hotkey,
-            self.toggle_macro,
-            suppress=False,
-            trigger_on_release=False,
-        )
+        for profile in self.macro_profiles:
+            hotkey = profile["hotkey"].strip().lower()
+            if not hotkey:
+                continue
+            self.macro_hotkey_handles[profile["id"]] = keyboard.add_hotkey(
+                hotkey,
+                lambda profile_id=profile["id"]: self.toggle_macro(profile_id),
+                suppress=False,
+                trigger_on_release=False,
+            )
 
     def capture_target_key(self) -> None:
         if self.capture_target_hook is not None:
@@ -979,7 +1170,10 @@ class KeyHoldApp:
         def on_event(event) -> None:
             if event.event_type != "down":
                 return
-            if event.name in {self.toggle_hotkey, self.macro_hotkey}:
+            reserved_hotkeys = {self.toggle_hotkey} | {
+                profile["hotkey"] for profile in self.macro_profiles if profile["hotkey"]
+            }
+            if event.name in reserved_hotkeys:
                 return
 
             self.root.after(0, self.finish_target_capture, event.name)
@@ -1038,6 +1232,135 @@ class KeyHoldApp:
             f"Press {self.toggle_hotkey.upper()} to toggle holding {self.target_key.upper()}.",
         )
 
+    def refresh_profile_tabs(self) -> None:
+        if not hasattr(self, "profile_tabs"):
+            return
+
+        values = [profile["name"] for profile in self.macro_profiles]
+        if not values:
+            values = ["Main Macro"]
+        self.profile_tabs.configure(values=values)
+        self.profile_tabs.set(self.get_selected_profile()["name"])
+        self.delete_profile_button.configure(state="normal" if len(self.macro_profiles) > 1 else "disabled")
+
+    def load_selected_profile_into_editor(self) -> None:
+        if not self.profile_editor_ready:
+            return
+
+        profile = self.get_selected_profile()
+        self.profile_name_entry.delete(0, "end")
+        self.profile_name_entry.insert(0, profile["name"])
+        self.macro_hotkey_entry.delete(0, "end")
+        self.macro_hotkey_entry.insert(0, profile["hotkey"])
+        self.macro_interval_entry.delete(0, "end")
+        self.macro_interval_entry.insert(0, f"{profile['interval_seconds']:g}")
+
+        for widget_set, step in zip(self.macro_step_widgets, profile["steps"]):
+            widget_set["button"].set(step["button"])
+            widget_set["hold_ms"].delete(0, "end")
+            widget_set["hold_ms"].insert(0, str(step["hold_ms"]))
+            widget_set["delay_ms"].delete(0, "end")
+            widget_set["delay_ms"].insert(0, str(step["delay_ms"]))
+
+        self.sync_active_profile_fields()
+        self.macro_detail_var.set(
+            f"Press {profile['hotkey'].upper()} to start or stop the {profile['name']} controller macro."
+        )
+        self.update_activity_indicators()
+
+    def on_profile_tab_selected(self, selected_name: str) -> None:
+        if not self.profile_editor_ready:
+            return
+
+        self.sync_config_from_ui()
+        for profile in self.macro_profiles:
+            if profile["name"] == selected_name:
+                self.selected_macro_profile_id = profile["id"]
+                break
+        self.load_selected_profile_into_editor()
+        self.save_config()
+
+    def add_macro_profile(self) -> None:
+        self.sync_config_from_ui()
+        new_profile = self.build_new_profile()
+        self.macro_profiles.append(new_profile)
+        self.selected_macro_profile_id = new_profile["id"]
+        self.refresh_profile_tabs()
+        self.load_selected_profile_into_editor()
+        self.save_config()
+        self.register_macro_hotkeys()
+        self.set_macro_status("Profile added", f"{new_profile['name']} is ready. Give it a hotkey and steps, then apply it.")
+
+    def delete_macro_profile(self) -> None:
+        if len(self.macro_profiles) <= 1:
+            self.set_macro_status("Cannot delete", "InputLab keeps at least one controller macro profile available.")
+            return
+
+        current_profile = self.get_selected_profile()
+        if self.active_macro_profile_id == current_profile["id"]:
+            self.stop_macro()
+
+        self.macro_profiles = [profile for profile in self.macro_profiles if profile["id"] != current_profile["id"]]
+        self.selected_macro_profile_id = self.macro_profiles[0]["id"]
+        self.refresh_profile_tabs()
+        self.load_selected_profile_into_editor()
+        self.save_config()
+        self.register_macro_hotkeys()
+        self.set_macro_status("Profile deleted", f"Removed {current_profile['name']}.")
+
+    def export_macro_profiles(self) -> None:
+        self.sync_config_from_ui()
+        export_path = filedialog.asksaveasfilename(
+            title="Export InputLab profiles",
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json")],
+            initialfile="InputLabProfiles.json",
+        )
+        if not export_path:
+            return
+
+        payload = {
+            "selected_macro_profile_id": self.selected_macro_profile_id,
+            "macro_profiles": self.macro_profiles,
+        }
+        Path(export_path).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        self.set_macro_status("Profiles exported", f"Saved your controller profiles to {Path(export_path).name}.")
+
+    def import_macro_profiles(self) -> None:
+        import_path = filedialog.askopenfilename(
+            title="Import InputLab profiles",
+            filetypes=[("JSON files", "*.json")],
+        )
+        if not import_path:
+            return
+
+        try:
+            payload = json.loads(Path(import_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            self.set_macro_status("Import failed", f"Could not read that profile file: {exc}")
+            return
+
+        raw_profiles = payload.get("macro_profiles", [])
+        imported_profiles = []
+        for index, raw_profile in enumerate(raw_profiles, start=1):
+            normalized = self.normalize_macro_profile(raw_profile, index)
+            if normalized is not None:
+                normalized["id"] = uuid.uuid4().hex
+                imported_profiles.append(normalized)
+
+        if not imported_profiles:
+            self.set_macro_status("Import failed", "That file does not contain any usable controller macro profiles.")
+            return
+
+        self.stop_macro()
+        self.macro_profiles = imported_profiles
+        self.selected_macro_profile_id = imported_profiles[0]["id"]
+        self.refresh_profile_tabs()
+        self.load_selected_profile_into_editor()
+        self.save_config()
+        self.register_macro_hotkeys()
+        self.set_macro_status("Profiles imported", f"Loaded {len(imported_profiles)} controller macro profiles.")
+
     def collect_macro_steps(self, include_blank_steps: bool = False):
         parsed_steps = []
         for widget_set in self.macro_step_widgets:
@@ -1064,9 +1387,11 @@ class KeyHoldApp:
         return parsed_steps
 
     def apply_macro_mapping(self) -> None:
+        profile = self.get_selected_profile()
+        profile_name = self.profile_name_entry.get().strip()
         new_hotkey = self.macro_hotkey_entry.get().strip().lower()
-        if not new_hotkey:
-            self.set_macro_status("Missing input", "Add a macro hotkey before applying the controller macro.")
+        if not profile_name or not new_hotkey:
+            self.set_macro_status("Missing input", "Add both a profile name and hotkey before applying the controller macro.")
             return
 
         try:
@@ -1099,17 +1424,34 @@ class KeyHoldApp:
             )
             return
 
+        for other_profile in self.macro_profiles:
+            if other_profile["id"] != profile["id"] and other_profile["name"].lower() == profile_name.lower():
+                self.set_macro_status(
+                    "Duplicate hotkey",
+                    f"{profile_name} already exists. Give each controller profile a different name.",
+                )
+                return
+            if other_profile["id"] != profile["id"] and other_profile["hotkey"] == new_hotkey:
+                self.set_macro_status(
+                    "Duplicate hotkey",
+                    f"{new_hotkey.upper()} is already used by {other_profile['name']}. Give each macro profile its own hotkey.",
+                )
+                return
+
         self.stop_macro()
-        self.macro_hotkey = new_hotkey
-        self.macro_interval_seconds = interval_seconds
-        self.macro_steps = self.collect_macro_steps(include_blank_steps=True)
-        self.register_macro_hotkey(self.macro_hotkey)
+        profile["name"] = profile_name
+        profile["hotkey"] = new_hotkey
+        profile["interval_seconds"] = interval_seconds
+        profile["steps"] = self.collect_macro_steps(include_blank_steps=True)
+        self.refresh_profile_tabs()
+        self.register_macro_hotkeys()
+        self.sync_active_profile_fields()
         self.save_config()
         self.reset_macro_progress()
 
         self.set_macro_status(
             "Macro saved",
-            f"Press {self.macro_hotkey.upper()} to start or stop the controller macro. It will wait {self.macro_interval_seconds:g} seconds between loops.",
+            f"Press {profile['hotkey'].upper()} to start or stop {profile['name']}. It will wait {profile['interval_seconds']:g} seconds between loops.",
         )
 
     def toggle_hold(self) -> None:
@@ -1169,15 +1511,25 @@ class KeyHoldApp:
             )
             return False
 
-    def toggle_macro(self) -> None:
-        if self.macro_running.is_set():
+    def toggle_macro(self, profile_id: str | None = None) -> None:
+        target_profile_id = profile_id or self.selected_macro_profile_id
+        if self.macro_running.is_set() and self.active_macro_profile_id == target_profile_id:
             self.stop_macro()
         else:
-            self.start_macro()
+            self.start_macro(target_profile_id)
 
-    def start_macro(self) -> None:
+    def start_macro(self, profile_id: str | None = None) -> None:
+        target_profile = self.get_profile_by_id(profile_id or self.selected_macro_profile_id)
+        if profile_id:
+            self.selected_macro_profile_id = target_profile["id"]
+            if self.profile_editor_ready:
+                self.refresh_profile_tabs()
+                self.load_selected_profile_into_editor()
+
         try:
-            active_steps = self.collect_macro_steps()
+            if self.profile_editor_ready and target_profile["id"] == self.selected_macro_profile_id:
+                self.sync_config_from_ui()
+            active_steps = [step.copy() for step in target_profile["steps"] if step["button"]]
         except ValueError as exc:
             self.set_macro_status("Invalid macro", str(exc))
             return
@@ -1192,22 +1544,24 @@ class KeyHoldApp:
         if self.macro_running.is_set():
             self.set_macro_status(
                 "Running",
-                f"Macro is already running. Press {self.macro_hotkey.upper()} or Stop Macro to end it.",
+                f"{self.get_profile_by_id(self.active_macro_profile_id)['name']} is already running. Starting {target_profile['name']} will switch over.",
             )
-            return
+            self.stop_macro()
 
         self.macro_running.set()
+        self.active_macro_profile_id = target_profile["id"]
+        self.sync_active_profile_fields()
         self.reset_macro_progress()
         self.update_activity_indicators()
         self.macro_thread = threading.Thread(
             target=self.run_macro_loop,
-            args=(active_steps,),
+            args=(target_profile, active_steps),
             daemon=True,
         )
         self.macro_thread.start()
         self.set_macro_status(
             "Running",
-            f"The virtual Xbox macro is looping now with a {self.macro_interval_seconds:g} second interval. Press {self.macro_hotkey.upper()} again to stop it.",
+            f"{target_profile['name']} is looping now with a {target_profile['interval_seconds']:g} second interval. Press {target_profile['hotkey'].upper()} again to stop it.",
         )
 
     def stop_macro(self) -> None:
@@ -1223,6 +1577,7 @@ class KeyHoldApp:
         if self.macro_thread is not None and self.macro_thread.is_alive():
             self.macro_thread.join(timeout=0.3)
         self.macro_thread = None
+        self.active_macro_profile_id = ""
         self.reset_macro_progress()
         self.update_activity_indicators()
 
@@ -1236,10 +1591,10 @@ class KeyHoldApp:
         }:
             self.set_macro_status(
                 "Ready",
-                f"Press {self.macro_hotkey.upper()} to start or stop the controller macro.",
+                f"Press {self.get_selected_profile()['hotkey'].upper()} to start or stop {self.get_selected_profile()['name']}.",
             )
 
-    def run_macro_loop(self, steps) -> None:
+    def run_macro_loop(self, profile: dict, steps) -> None:
         loop_count = 0
         while self.macro_running.is_set():
             loop_count += 1
@@ -1248,7 +1603,7 @@ class KeyHoldApp:
                 if not self.macro_running.is_set():
                     break
                 self.press_virtual_button(index, len(steps), step["button"], step["hold_ms"], step["delay_ms"])
-            if self.macro_running.is_set() and self.macro_interval_seconds > 0:
+            if self.macro_running.is_set() and profile["interval_seconds"] > 0:
                 self.root.after(
                     0,
                     lambda lc=loop_count: self.macro_last_action_var.set(
@@ -1259,7 +1614,7 @@ class KeyHoldApp:
                     0,
                     lambda: self.macro_current_step_var.set("Current step: Waiting for next loop"),
                 )
-                self.sleep_with_cancel(self.macro_interval_seconds)
+                self.sleep_with_cancel(profile["interval_seconds"])
 
         self.root.after(
             0,
@@ -1344,11 +1699,12 @@ class KeyHoldApp:
             time.sleep(0.01)
 
     def on_macro_loop_complete(self) -> None:
+        profile = self.get_selected_profile()
         self.reset_macro_progress()
         self.update_activity_indicators()
         self.set_macro_status(
             "Ready",
-            f"Press {self.macro_hotkey.upper()} to start or stop the controller macro.",
+            f"Press {profile['hotkey'].upper()} to start or stop {profile['name']}.",
         )
 
     def reset_macro_progress(self) -> None:
@@ -1635,11 +1991,18 @@ class KeyHoldApp:
             "Ready": "#1f2937",
             "Running": "#14532d",
             "Macro saved": "#1d4ed8",
+            "Profile added": "#1d4ed8",
+            "Profiles imported": "#1d4ed8",
+            "Profiles exported": "#1d4ed8",
             "Driver needed": "#7c2d12",
             "Invalid hotkey": "#7c2d12",
             "Invalid macro": "#7c2d12",
             "Missing input": "#7c2d12",
             "No steps": "#7c2d12",
+            "Duplicate hotkey": "#7c2d12",
+            "Cannot delete": "#7c2d12",
+            "Profile deleted": "#1f2937",
+            "Import failed": "#7c2d12",
         }
         self.macro_status_badge.configure(
             fg_color=color_map.get(self.macro_status_var.get(), "#1f2937")
@@ -1659,9 +2022,9 @@ class KeyHoldApp:
             keyboard.remove_hotkey(self.key_hold_hotkey_handle)
             self.key_hold_hotkey_handle = None
 
-        if self.macro_hotkey_handle is not None:
-            keyboard.remove_hotkey(self.macro_hotkey_handle)
-            self.macro_hotkey_handle = None
+        for handle in self.macro_hotkey_handles.values():
+            keyboard.remove_hotkey(handle)
+        self.macro_hotkey_handles = {}
 
         self.root.destroy()
 
