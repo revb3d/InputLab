@@ -25,7 +25,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.2.8"
+APP_VERSION = "1.2.9"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -1497,11 +1497,35 @@ class KeyHoldApp:
         macro_body.pack(fill="x", padx=20, pady=(0, 16), anchor="w")
 
         macro_config_column = ctk.CTkFrame(macro_body, fg_color=THEME["panel_low"])
-        macro_config_column.pack(side="left", fill="both", expand=True, padx=(0, 12), anchor="n")
+        macro_config_column.pack(fill="both", expand=True, anchor="n")
 
-        progress_column = ctk.CTkFrame(macro_body, fg_color=THEME["panel_low"], width=310)
-        progress_column.pack(side="left", fill="y", anchor="n")
-        progress_column.pack_propagate(False)
+        progress_frame = self.build_section_frame(macro_config_column)
+        progress_frame.pack(fill="x", pady=(0, 16))
+
+        progress_header_row = ctk.CTkFrame(progress_frame, fg_color="transparent")
+        progress_header_row.pack(fill="x", padx=18, pady=(16, 10))
+
+        progress_header = ctk.CTkLabel(
+            progress_header_row,
+            text="Live progress",
+            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            text_color=THEME["text"],
+        )
+        progress_header.pack(side="left")
+
+        self.live_progress_accent = ctk.CTkFrame(
+            progress_header_row,
+            height=5,
+            fg_color=THEME["blue"],
+            corner_radius=3,
+            width=120,
+        )
+        self.live_progress_accent.pack(side="right", pady=(5, 0))
+        self.live_progress_accent.pack_propagate(False)
+
+        progress_metrics_grid = ctk.CTkFrame(progress_frame, fg_color="transparent")
+        progress_metrics_grid.pack(fill="x", padx=18, pady=(0, 16))
+        progress_metrics_grid.grid_columnconfigure((0, 1), weight=1, uniform="progress")
 
         setup = self.build_section_frame(macro_config_column)
         setup.pack(fill="x", pady=(0, 16))
@@ -1610,33 +1634,14 @@ class KeyHoldApp:
         )
         self.add_step_button.pack(side="left")
 
-        progress_frame = self.build_section_frame(progress_column)
-        progress_frame.pack(fill="both", expand=True)
-
-        progress_header = ctk.CTkLabel(
-            progress_frame,
-            text="Live progress",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
-            text_color=THEME["text"],
-        )
-        progress_header.pack(anchor="w", padx=18, pady=(16, 10))
-
-        self.live_progress_accent = ctk.CTkFrame(
-            progress_frame,
-            height=5,
-            fg_color=THEME["blue"],
-            corner_radius=3,
-        )
-        self.live_progress_accent.pack(fill="x", padx=18, pady=(0, 14))
-
-        for variable in (
+        for index, variable in enumerate((
             self.macro_current_step_var,
             self.macro_last_action_var,
             self.macro_next_action_var,
             self.macro_loop_var,
-        ):
+        )):
             metric = ctk.CTkLabel(
-                progress_frame,
+                progress_metrics_grid,
                 textvariable=variable,
                 height=40,
                 corner_radius=12,
@@ -1645,9 +1650,15 @@ class KeyHoldApp:
                 text_color="#c6d2e5",
                 anchor="w",
                 justify="left",
-                wraplength=236,
+                wraplength=360,
             )
-            metric.pack(fill="x", padx=18, pady=5)
+            metric.grid(
+                row=index // 2,
+                column=index % 2,
+                sticky="ew",
+                padx=5,
+                pady=5,
+            )
 
         actions = ctk.CTkFrame(macro_config_column, fg_color="transparent")
         actions.pack(fill="x", pady=(0, 8))

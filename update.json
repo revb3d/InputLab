@@ -1,5 +1,5 @@
 {
-  "version": "1.2.8",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.8/InputLabSetup.exe",
-  "notes": "Added a startup splash screen and a section transition overlay so InputLab hides layout reflow while opening and switching sections."
+  "version": "1.2.9",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.2.9/InputLabSetup.exe",
+  "notes": "Moved live progress into the main controller macro flow so it is visible at the default startup window size."
 }
