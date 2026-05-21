@@ -1,5 +1,5 @@
 {
-  "version": "1.0.2",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.0.2/KeyHoldToggleSetup.exe",
-  "notes": "Locked the update feed, added automatic update checks on launch, refined the controller layout, and renamed the app to InputLab."
+  "version": "1.0.3",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.0.3/InputLabSetup.exe",
+  "notes": "Fixed the installer naming, corrected the entry width startup crash, and aligned the packaged exe and installer with the InputLab brand."
 }

@@ -1,7 +1,7 @@
 #define MyAppName "InputLab"
-#define MyAppVersion "1.0.2"
+#define MyAppVersion "1.0.3"
 #define MyAppPublisher "InputLab"
-#define MyAppExeName "KeyHoldToggle.exe"
+#define MyAppExeName "InputLab.exe"
 
 [Setup]
 AppId={{44FEA815-6F8A-4D91-B85A-5248FF9275C5}
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=installer-dist
-OutputBaseFilename=KeyHoldToggleSetup
+OutputBaseFilename=InputLabSetup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -26,7 +26,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Files]
-Source: "dist\KeyHoldToggle\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\InputLab\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

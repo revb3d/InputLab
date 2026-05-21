@@ -17,7 +17,7 @@ except ImportError:
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/revb3d/InputLab/main/update.json"
 BUTTON_OPTIONS = [
     "A",
@@ -829,17 +829,19 @@ class KeyHoldApp:
         )
         label.pack(side="left", padx=(0, 14))
 
-        entry = ctk.CTkEntry(
-            row,
-            width=entry_width,
-            height=42,
-            corner_radius=14,
-            border_color="#253247",
-            fg_color="#121926",
-            text_color="#f8fbff",
-            placeholder_text=hint_text,
-            font=ctk.CTkFont(family="Segoe UI", size=14),
-        )
+        entry_kwargs = {
+            "height": 42,
+            "corner_radius": 14,
+            "border_color": "#253247",
+            "fg_color": "#121926",
+            "text_color": "#f8fbff",
+            "placeholder_text": hint_text,
+            "font": ctk.CTkFont(family="Segoe UI", size=14),
+        }
+        if entry_width is not None:
+            entry_kwargs["width"] = entry_width
+
+        entry = ctk.CTkEntry(row, **entry_kwargs)
         entry.pack(side="left", fill="x" if expand_entry else "none", expand=expand_entry)
         entry.insert(0, value)
         return entry

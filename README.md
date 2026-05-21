@@ -28,14 +28,14 @@ Example:
 ## Build an EXE
 
 1. Double-click [build_exe.bat](D:\Downloads\autokeyhold\build_exe.bat)
-2. When it finishes, open `dist\KeyHoldToggle\`
-3. Run `KeyHoldToggle.exe`
+2. When it finishes, open `dist\InputLab\`
+3. Run `InputLab.exe`
 
 ## Build an installer
 
 1. Double-click [build_installer.bat](D:\Downloads\autokeyhold\build_installer.bat)
 2. When it finishes, open `installer-dist\`
-3. Send `KeyHoldToggleSetup.exe` to your friend
+3. Send `InputLabSetup.exe` to your friend
 4. They run the installer, then launch the app from the Start menu or desktop shortcut
 
 ## In-app update checker
