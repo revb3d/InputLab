@@ -154,12 +154,7 @@ footer {
 }
 
 .button::before {
-  content: "";
-  position: absolute;
-  inset: 1px;
-  border-radius: 15px;
-  opacity: 0.82;
-  pointer-events: none;
+  content: none;
 }
 
 .button:hover {
@@ -167,12 +162,14 @@ footer {
 }
 
 .button-primary {
-  background: var(--gradient-main);
+  background:
+    linear-gradient(135deg, rgba(12, 12, 18, 0.08), rgba(12, 12, 18, 0.32)),
+    var(--gradient-main);
   box-shadow: 0 18px 42px rgba(120, 89, 255, 0.18);
 }
 
 .button-primary::before {
-  background: linear-gradient(135deg, rgba(12, 12, 18, 0.18), rgba(12, 12, 18, 0.48));
+  content: none;
 }
 
 .button-primary:hover {
@@ -181,12 +178,14 @@ footer {
 
 .button-secondary {
   border-color: var(--border);
-  background: rgba(20, 25, 35, 0.64);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.005)),
+    rgba(20, 25, 35, 0.64);
   backdrop-filter: blur(14px);
 }
 
 .button-secondary::before {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  content: none;
 }
 
 main {
