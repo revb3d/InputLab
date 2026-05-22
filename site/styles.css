@@ -200,7 +200,8 @@ main {
 .hero,
 .page-hero {
   display: grid;
-  gap: 42px;
+  column-gap: 42px;
+  row-gap: 24px;
   padding: 28px;
   border: 1px solid var(--border);
   border-radius: 32px;
@@ -216,7 +217,17 @@ main {
 }
 
 .hero::before,
-.page-hero::before,
+.page-hero::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--gradient-main);
+  margin-bottom: 0;
+  grid-column: 1 / -1;
+}
+
 .footer::before {
   content: "";
   display: block;
