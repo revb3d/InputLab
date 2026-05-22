@@ -1,5 +1,5 @@
 {
-  "version": "1.3.11",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.11/InputLabSetup.exe",
-  "notes": "Widened the selected sidebar gradient pills so labels like Controller Macro no longer clip inside the active module state."
+  "version": "1.3.12",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.12/InputLabSetup.exe",
+  "notes": "Rebuilt the thin header and panel accent strips with image-based gradients so the tiny top-left rendering speck no longer appears next to the logo."
 }

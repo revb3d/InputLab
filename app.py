@@ -35,7 +35,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.11"
+APP_VERSION = "1.3.12"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -2847,12 +2847,18 @@ class KeyHoldApp:
         width = max(canvas.winfo_width(), 2)
         colors = (THEME["blue"], THEME["amber"], THEME["green"], THEME["cyan"])
         segments = len(colors) - 1
+        strip_image = Image.new("RGB", (width, 1))
+        pixels = []
         for x in range(width):
             ratio = x / max(width - 1, 1)
             segment = min(int(ratio * segments), segments - 1)
             local_ratio = (ratio - (segment / segments)) * segments
             color = self.mix_theme_hex(colors[segment], colors[segment + 1], local_ratio)
-            canvas.create_line(x, 0, x, height, fill=color)
+            pixels.append(GradientButton.hex_to_rgb(color))
+        strip_image.putdata(pixels)
+        strip_image = strip_image.resize((width, height), Image.Resampling.BICUBIC)
+        canvas.gradient_photo = ImageTk.PhotoImage(strip_image)
+        canvas.create_image(0, 0, anchor="nw", image=canvas.gradient_photo)
 
     def mix_theme_hex(self, left: str, right: str, ratio: float) -> str:
         left_rgb = GradientButton.hex_to_rgb(left)
