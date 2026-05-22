@@ -35,7 +35,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.9"
+APP_VERSION = "1.3.10"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -625,6 +625,8 @@ class KeyHoldApp:
         self.logo_photo = None
         self.background_photo = None
         self.background_label = None
+        self.background_render_after_id = None
+        self.last_background_size = (0, 0)
         self.apply_window_icon()
         self.startup_splash = None
         self.startup_status_var = tk.StringVar(value="Loading InputLab...")
@@ -701,6 +703,7 @@ class KeyHoldApp:
         self.recorder_key_down_times = {}
         self.recorder_steps = []
         self.recorder_last_release_at = None
+        self.content_shell_width = 0
 
         self.build_ui()
         self.root.after(0, self.show_centered_window)
@@ -1267,18 +1270,26 @@ class KeyHoldApp:
             border_width=0,
         )
         self.content_area.pack(side="left", fill="both", expand=True)
+        self.content_area.bind("<Configure>", self.on_content_area_configure, add="+")
+
+        self.content_shell = ctk.CTkFrame(
+            self.content_area,
+            fg_color=THEME["panel_low"],
+            corner_radius=0,
+        )
+        self.content_shell.place(relx=0.5, rely=0, anchor="n", relheight=1)
 
         self.workspace_accent = ctk.CTkFrame(
-            self.content_area,
+            self.content_shell,
             fg_color=THEME["blue"],
             height=4,
         )
         self.workspace_accent.pack(fill="x", padx=20, pady=(18, 0))
         self.workspace_accent.pack_propagate(False)
 
-        self.keyboard_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
-        self.macro_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
-        self.settings_view = ctk.CTkFrame(self.content_area, fg_color=THEME["panel_low"])
+        self.keyboard_view = ctk.CTkFrame(self.content_shell, fg_color=THEME["panel_low"])
+        self.macro_view = ctk.CTkFrame(self.content_shell, fg_color=THEME["panel_low"])
+        self.settings_view = ctk.CTkFrame(self.content_shell, fg_color=THEME["panel_low"])
         self.section_transition_overlay = ctk.CTkFrame(
             self.content_area,
             fg_color=THEME["shell"],
@@ -1357,6 +1368,13 @@ class KeyHoldApp:
         if event.width != self.body_canvas_last_width:
             self.body_canvas_last_width = event.width
             self.body_canvas.itemconfigure(self.body_canvas_window, width=event.width)
+
+    def on_content_area_configure(self, event) -> None:
+        available_width = max(event.width - 20, 900)
+        shell_width = min(available_width, 1460)
+        if shell_width != self.content_shell_width:
+            self.content_shell_width = shell_width
+            self.content_shell.place_configure(width=shell_width)
 
     def on_body_mousewheel(self, event) -> None:
         if not self.pointer_is_over_widget(self.body_canvas):
@@ -2746,6 +2764,7 @@ class KeyHoldApp:
     def render_app_background(self) -> None:
         width = max(self.root.winfo_width(), 1600)
         height = max(self.root.winfo_height(), 960)
+        self.last_background_size = (width, height)
         base = Image.new("RGBA", (width, height), (12, 13, 13, 255))
 
         top_left = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -2792,13 +2811,35 @@ class KeyHoldApp:
 
         self.background_photo = ImageTk.PhotoImage(base)
         if self.background_label is None:
-            self.background_label = tk.Label(self.root, image=self.background_photo, bd=0, highlightthickness=0)
+            self.background_label = tk.Label(
+                self.root,
+                image=self.background_photo,
+                bd=0,
+                highlightthickness=0,
+                bg=THEME["app_bg"],
+            )
             self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
             self.background_label.lower()
         else:
             self.background_label.configure(image=self.background_photo)
             self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
             self.background_label.lower()
+
+    def schedule_background_rerender(self, delay_ms: int = 90) -> None:
+        if self.background_render_after_id is not None:
+            self.root.after_cancel(self.background_render_after_id)
+        self.background_render_after_id = self.root.after(delay_ms, self.flush_background_rerender)
+
+    def flush_background_rerender(self) -> None:
+        self.background_render_after_id = None
+        if not self.root.winfo_exists():
+            return
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        last_width, last_height = self.last_background_size
+        if abs(width - last_width) < 40 and abs(height - last_height) < 40:
+            return
+        self.render_app_background()
 
     def draw_gradient_strip(self, canvas: tk.Canvas, height: int) -> None:
         canvas.delete("all")
@@ -2868,6 +2909,7 @@ class KeyHoldApp:
         if not self.root.winfo_viewable():
             return
         self.schedule_window_opaque_reset()
+        self.schedule_background_rerender()
 
     def on_root_map(self, _event=None) -> None:
         self.schedule_window_opaque_reset(20)
