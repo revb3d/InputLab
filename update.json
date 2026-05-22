@@ -1,5 +1,5 @@
 {
-  "version": "1.3.7",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.7/InputLabSetup.exe",
-  "notes": "Retuned the desktop UI to match the website more closely with the same Manrope and Syne font stack, richer site-style background glows, and the same amber-lime-cyan primary gradients throughout the app."
+  "version": "1.3.8",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.8/InputLabSetup.exe",
+  "notes": "Retuned the desktop gradient buttons to match the website more closely with brighter amber-lime-cyan fills, softer sheen, tighter typography, and wider primary actions so labels no longer clip."
 }

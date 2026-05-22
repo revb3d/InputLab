@@ -35,7 +35,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.7"
+APP_VERSION = "1.3.8"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -217,8 +217,8 @@ class GradientButton(tk.Canvas):
         colors: tuple[str, ...],
         hover_colors: tuple[str, ...],
         width: int = 174,
-        height: int = 48,
-        corner_radius: int = 16,
+        height: int = 50,
+        corner_radius: int = 24,
         outline_color: str | None = None,
     ) -> None:
         parent_bg = THEME["panel_low"]
@@ -300,10 +300,13 @@ class GradientButton(tk.Canvas):
 
         def step(frame: int) -> None:
             ratio = frame / frames
-            colors = (
-                self.mix_hex(start_colors[0], target_colors[0], ratio),
-                self.mix_hex(start_colors[1], target_colors[1], ratio),
-            )
+            if len(start_colors) != len(target_colors):
+                colors = target_colors
+            else:
+                colors = tuple(
+                    self.mix_hex(start_colors[index], target_colors[index], ratio)
+                    for index in range(len(target_colors))
+                )
             self.draw(colors)
             if frame < frames:
                 self.animation_after_id = self.after(12, lambda: step(frame + 1))
@@ -317,7 +320,7 @@ class GradientButton(tk.Canvas):
         self.delete("all")
         if not pressed:
             self.draw_shadow(self.radius)
-        render_colors = self.darken_pair(colors, 0.72 if not pressed else 0.64)
+        render_colors = self.darken_pair(colors, 0.9 if not pressed else 0.82)
         gradient = self.get_gradient(render_colors)
         for x, color in enumerate(gradient):
             top, bottom = self.vertical_spans[x]
@@ -331,13 +334,13 @@ class GradientButton(tk.Canvas):
             (self.button_height // 2) + (1 if pressed else 0),
             text=self.text,
             fill=THEME["text"],
-            font=(BODY_FONT_FAMILY, 15, "bold"),
+            font=(BODY_FONT_FAMILY, 13, "bold"),
         )
 
     def draw_shadow(self, radius: int) -> None:
         width = self.button_width - 2
         height = self.button_height - 2
-        shadow = "#06101c"
+        shadow = "#0a1114"
         self.create_arc(2, 4, radius * 2 + 2, radius * 2 + 4, start=90, extent=90, style="arc", outline=shadow)
         self.create_arc(width - radius * 2, 4, width, radius * 2 + 4, start=0, extent=90, style="arc", outline=shadow)
         self.create_arc(2, height - radius * 2, radius * 2 + 2, height, start=180, extent=90, style="arc", outline=shadow)
@@ -357,7 +360,7 @@ class GradientButton(tk.Canvas):
                 continue
             alpha = max(0, 1 - abs(offset - center) / center)
             alpha = alpha * alpha
-            color = self.mix_hex(gradient[x], THEME["shell_high"], alpha * 0.42)
+            color = self.mix_hex(gradient[x], THEME["shell_high"], alpha * 0.26)
             top, bottom = self.vertical_spans[x]
             taper = int(abs(offset - center) * 0.14)
             sheen_top = top + 3 + taper
@@ -1537,8 +1540,8 @@ class KeyHoldApp:
             command=self.apply_keyboard_mapping,
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=300,
-            height=48,
+            width=352,
+            height=50,
         )
         apply_button.pack(side="left")
 
@@ -2028,8 +2031,8 @@ class KeyHoldApp:
             command=self.apply_macro_mapping,
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=174,
-            height=48,
+            width=214,
+            height=50,
         )
         apply_button.pack(side="left")
 
@@ -2039,8 +2042,8 @@ class KeyHoldApp:
             command=self.start_macro,
             colors=(THEME["green_deep"], THEME["green"]),
             hover_colors=("#15803d", "#22c55e"),
-            width=174,
-            height=48,
+            width=214,
+            height=50,
         )
         start_button.pack(side="left", padx=(12, 0))
 
