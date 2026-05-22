@@ -1,5 +1,5 @@
 {
-  "version": "1.3.12",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.12/InputLabSetup.exe",
-  "notes": "Rebuilt the thin header and panel accent strips with image-based gradients so the tiny top-left rendering speck no longer appears next to the logo."
+  "version": "1.3.13",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.13/InputLabSetup.exe",
+  "notes": "Brought more of the website motion and glow language into the desktop app with ambient background breathing, stronger CTA glow and sheen, and glass-card hover lighting."
 }

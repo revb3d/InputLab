@@ -1,5 +1,6 @@
 import json
 import ctypes
+import math
 import os
 import subprocess
 import sys
@@ -35,7 +36,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.12"
+APP_VERSION = "1.3.13"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -318,14 +319,21 @@ class GradientButton(tk.Canvas):
     def draw(self, colors: tuple[str, ...], pressed: bool = False) -> None:
         self.current_colors = colors
         self.delete("all")
-        if not pressed:
-            self.draw_shadow(self.radius)
+        self.draw_shadow(self.radius, pressed)
         render_colors = self.darken_pair(colors, 0.9 if not pressed else 0.82)
         gradient = self.get_gradient(render_colors)
         for x, color in enumerate(gradient):
             top, bottom = self.vertical_spans[x]
             self.create_line(x, top, x, bottom, fill=color)
-        if self.is_hovering and not HIGH_PERFORMANCE_UI:
+        self.draw_rounded_stroke(
+            1,
+            1,
+            self.button_width - 2,
+            self.button_height - 2,
+            self.radius - 1,
+            self.mix_hex(THEME["text"], THEME["field"], 0.78),
+        )
+        if self.is_hovering:
             self.draw_sheen()
         if self.outline_color:
             self.draw_rounded_border(self.radius)
@@ -337,21 +345,22 @@ class GradientButton(tk.Canvas):
             font=(BODY_FONT_FAMILY, 13, "bold"),
         )
 
-    def draw_shadow(self, radius: int) -> None:
-        width = self.button_width - 2
-        height = self.button_height - 2
-        shadow = "#0a1114"
-        self.create_arc(2, 4, radius * 2 + 2, radius * 2 + 4, start=90, extent=90, style="arc", outline=shadow)
-        self.create_arc(width - radius * 2, 4, width, radius * 2 + 4, start=0, extent=90, style="arc", outline=shadow)
-        self.create_arc(2, height - radius * 2, radius * 2 + 2, height, start=180, extent=90, style="arc", outline=shadow)
-        self.create_arc(width - radius * 2, height - radius * 2, width, height, start=270, extent=90, style="arc", outline=shadow)
-        self.create_line(radius + 2, 4, width - radius, 4, fill=shadow)
-        self.create_line(radius + 2, height, width - radius, height, fill=shadow)
-        self.create_line(2, radius + 4, 2, height - radius, fill=shadow)
-        self.create_line(width, radius + 4, width, height - radius, fill=shadow)
+    def draw_shadow(self, radius: int, pressed: bool) -> None:
+        base_shadow = self.mix_hex(THEME["app_bg"], THEME["shell"], 0.46)
+        glow_shadow = self.mix_hex(
+            THEME["app_bg"],
+            THEME["cyan"] if self.is_hovering else THEME["green"],
+            0.30 if self.is_hovering else 0.12,
+        )
+        outer_top = 4 if pressed else 3
+        outer_bottom = self.button_height - 1 if pressed else self.button_height
+        inner_top = 3 if pressed else 2
+        inner_bottom = self.button_height - 2 if pressed else self.button_height - 1
+        self.draw_rounded_stroke(2, outer_top, self.button_width - 2, outer_bottom, radius, glow_shadow)
+        self.draw_rounded_stroke(1, inner_top, self.button_width - 3, inner_bottom, radius, base_shadow)
 
     def draw_sheen(self) -> None:
-        band_width = 82
+        band_width = 86
         center = band_width / 2
         gradient = self.get_gradient(self.current_colors)
         for offset in range(band_width):
@@ -359,31 +368,28 @@ class GradientButton(tk.Canvas):
             if x < 0 or x >= self.button_width:
                 continue
             alpha = max(0, 1 - abs(offset - center) / center)
-            alpha = alpha * alpha
-            color = self.mix_hex(gradient[x], THEME["shell_high"], alpha * 0.26)
+            alpha = alpha * alpha * 0.72
+            color = self.mix_hex(gradient[x], THEME["text"], alpha * 0.18)
             top, bottom = self.vertical_spans[x]
-            taper = int(abs(offset - center) * 0.14)
+            taper = int(abs(offset - center) * 0.16)
             sheen_top = top + 3 + taper
             sheen_bottom = bottom - 3 - taper
             if sheen_top < sheen_bottom:
                 self.create_line(x, sheen_top, x, sheen_bottom, fill=color)
 
     def start_sheen(self) -> None:
-        if HIGH_PERFORMANCE_UI:
-            return
-
         self.sheen_x = -60
 
         def step() -> None:
             if not self.is_hovering:
                 self.sheen_after_id = None
                 return
-            self.sheen_x += 36
+            self.sheen_x += 24
             self.draw(self.current_colors)
             if self.sheen_x < self.button_width + 52:
-                self.sheen_after_id = self.after(8, step)
+                self.sheen_after_id = self.after(16, step)
             else:
-                self.sheen_after_id = self.after(320, self.restart_sheen)
+                self.sheen_after_id = self.after(420, self.restart_sheen)
 
         if self.sheen_after_id is None:
             step()
@@ -393,27 +399,29 @@ class GradientButton(tk.Canvas):
         if self.is_hovering:
             self.start_sheen()
 
-    def draw_rounded_border(self, radius: int) -> None:
-        width = self.button_width - 1
-        height = self.button_height - 1
-        outline = self.outline_color or "#6ea8ff"
-        self.create_arc(0, 0, radius * 2, radius * 2, start=90, extent=90, style="arc", outline=outline)
-        self.create_arc(width - radius * 2, 0, width, radius * 2, start=0, extent=90, style="arc", outline=outline)
-        self.create_arc(0, height - radius * 2, radius * 2, height, start=180, extent=90, style="arc", outline=outline)
+    def draw_rounded_stroke(self, left: int, top: int, right: int, bottom: int, radius: int, outline: str) -> None:
+        radius = max(1, min(radius, (right - left) // 2, (bottom - top) // 2))
+        self.create_arc(left, top, left + radius * 2, top + radius * 2, start=90, extent=90, style="arc", outline=outline)
+        self.create_arc(right - radius * 2, top, right, top + radius * 2, start=0, extent=90, style="arc", outline=outline)
+        self.create_arc(left, bottom - radius * 2, left + radius * 2, bottom, start=180, extent=90, style="arc", outline=outline)
         self.create_arc(
-            width - radius * 2,
-            height - radius * 2,
-            width,
-            height,
+            right - radius * 2,
+            bottom - radius * 2,
+            right,
+            bottom,
             start=270,
             extent=90,
             style="arc",
             outline=outline,
         )
-        self.create_line(radius, 0, width - radius, 0, fill=outline)
-        self.create_line(radius, height, width - radius, height, fill=outline)
-        self.create_line(0, radius, 0, height - radius, fill=outline)
-        self.create_line(width, radius, width, height - radius, fill=outline)
+        self.create_line(left + radius, top, right - radius, top, fill=outline)
+        self.create_line(left + radius, bottom, right - radius, bottom, fill=outline)
+        self.create_line(left, top + radius, left, bottom - radius, fill=outline)
+        self.create_line(right, top + radius, right, bottom - radius, fill=outline)
+
+    def draw_rounded_border(self, radius: int) -> None:
+        outline = self.outline_color or "#6ea8ff"
+        self.draw_rounded_stroke(0, 0, self.button_width - 1, self.button_height - 1, radius, outline)
 
     def darken_pair(self, colors: tuple[str, ...], factor: float) -> tuple[str, ...]:
         return tuple(self.scale_hex(color, factor) for color in colors)
@@ -627,6 +635,8 @@ class KeyHoldApp:
         self.background_label = None
         self.background_render_after_id = None
         self.last_background_size = (0, 0)
+        self.background_animation_phase = 0.0
+        self.background_animation_after_id = None
         self.apply_window_icon()
         self.startup_splash = None
         self.startup_status_var = tk.StringVar(value="Loading InputLab...")
@@ -706,6 +716,7 @@ class KeyHoldApp:
         self.content_shell_width = 0
 
         self.build_ui()
+        self.start_background_animation()
         self.root.after(0, self.show_centered_window)
         self.register_key_hold_hotkey(self.toggle_hotkey)
         self.register_macro_hotkeys()
@@ -2483,6 +2494,7 @@ class KeyHoldApp:
             border_color=THEME["border_soft"],
             border_width=1,
         )
+        self.register_glow_card(card)
 
         badge = ctk.CTkLabel(
             card,
@@ -2542,13 +2554,15 @@ class KeyHoldApp:
         ).pack(anchor="w", pady=(5, 0))
 
     def build_section_frame(self, parent):
-        return ctk.CTkFrame(
+        frame = ctk.CTkFrame(
             parent,
             fg_color=THEME["panel"],
             corner_radius=20,
             border_color=THEME["border_soft"],
             border_width=1,
         )
+        self.register_glow_card(frame)
+        return frame
 
     def add_labeled_entry(
         self,
@@ -2765,29 +2779,34 @@ class KeyHoldApp:
         width = max(self.root.winfo_width(), 1600)
         height = max(self.root.winfo_height(), 960)
         self.last_background_size = (width, height)
+        phase = self.background_animation_phase
+        warm_shift_x = int(math.sin(phase) * 34)
+        warm_shift_y = int(math.cos(phase * 0.82) * 24)
+        cool_shift_x = int(math.cos(phase * 0.74) * 38)
+        cool_shift_y = int(math.sin(phase * 0.67) * 26)
         base = Image.new("RGBA", (width, height), (12, 13, 13, 255))
 
         top_left = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         top_left_draw = ImageDraw.Draw(top_left)
         top_left_draw.ellipse(
-            (-320, -180, int(width * 0.52), int(height * 0.92)),
-            fill=(225, 140, 77, 82),
+            (-320 + warm_shift_x, -180 + warm_shift_y, int(width * 0.52) + warm_shift_x, int(height * 0.92) + warm_shift_y),
+            fill=(225, 140, 77, 88),
         )
         top_left_draw.ellipse(
-            (int(width * 0.08), int(height * 0.10), int(width * 0.78), int(height * 0.88)),
-            fill=(215, 219, 87, 34),
+            (int(width * 0.08) - warm_shift_x, int(height * 0.10), int(width * 0.78) - warm_shift_x, int(height * 0.88)),
+            fill=(215, 219, 87, 42),
         )
         top_left = top_left.filter(ImageFilter.GaussianBlur(160))
 
         bottom_right = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         bottom_right_draw = ImageDraw.Draw(bottom_right)
         bottom_right_draw.ellipse(
-            (int(width * 0.56), int(height * 0.56), width + 260, height + 260),
-            fill=(76, 167, 230, 80),
+            (int(width * 0.56) + cool_shift_x, int(height * 0.56) + cool_shift_y, width + 260 + cool_shift_x, height + 260 + cool_shift_y),
+            fill=(76, 167, 230, 86),
         )
         bottom_right_draw.ellipse(
-            (int(width * 0.34), int(height * 0.28), width + 120, int(height * 1.02)),
-            fill=(79, 195, 156, 38),
+            (int(width * 0.34) - cool_shift_x, int(height * 0.28) - cool_shift_y, width + 120 - cool_shift_x, int(height * 1.02) - cool_shift_y),
+            fill=(79, 195, 156, 46),
         )
         bottom_right = bottom_right.filter(ImageFilter.GaussianBlur(170))
 
@@ -2840,6 +2859,57 @@ class KeyHoldApp:
         if abs(width - last_width) < 40 and abs(height - last_height) < 40:
             return
         self.render_app_background()
+
+    def start_background_animation(self) -> None:
+        if self.background_animation_after_id is not None:
+            self.root.after_cancel(self.background_animation_after_id)
+
+        def tick() -> None:
+            if not self.root.winfo_exists():
+                self.background_animation_after_id = None
+                return
+            self.background_animation_phase = (self.background_animation_phase + 0.22) % (math.tau)
+            self.render_app_background()
+            self.background_animation_after_id = self.root.after(1800, tick)
+
+        self.background_animation_after_id = self.root.after(1800, tick)
+
+    def register_glow_card(self, widget) -> None:
+        widget._glow_base_fg = THEME["panel"]
+        widget._glow_base_border = THEME["border_soft"]
+        widget._glow_after_id = None
+        widget.bind("<Enter>", lambda _event, target=widget: self.animate_glow_card(target, True), add="+")
+        widget.bind("<Leave>", lambda _event, target=widget: self.animate_glow_card(target, False), add="+")
+
+    def animate_glow_card(self, widget, hovering: bool) -> None:
+        after_id = getattr(widget, "_glow_after_id", None)
+        if after_id is not None:
+            self.root.after_cancel(after_id)
+            widget._glow_after_id = None
+
+        start_fg = widget.cget("fg_color")
+        if isinstance(start_fg, tuple):
+            start_fg = start_fg[1]
+        start_border = widget.cget("border_color")
+        if isinstance(start_border, tuple):
+            start_border = start_border[1]
+        base_fg = getattr(widget, "_glow_base_fg", THEME["panel"])
+        base_border = getattr(widget, "_glow_base_border", THEME["border_soft"])
+        target_fg = self.mix_theme_hex(base_fg, THEME["shell_high"], 0.38) if hovering else base_fg
+        target_border = self.mix_theme_hex(base_border, THEME["cyan"], 0.44) if hovering else base_border
+        frames = 4
+
+        def step(frame: int) -> None:
+            ratio = frame / frames
+            fg = self.mix_theme_hex(start_fg, target_fg, ratio)
+            border = self.mix_theme_hex(start_border, target_border, ratio)
+            widget.configure(fg_color=fg, border_color=border)
+            if frame < frames:
+                widget._glow_after_id = self.root.after(26, lambda: step(frame + 1))
+            else:
+                widget._glow_after_id = None
+
+        step(1)
 
     def draw_gradient_strip(self, canvas: tk.Canvas, height: int) -> None:
         canvas.delete("all")
