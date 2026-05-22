@@ -1,5 +1,5 @@
 {
-  "version": "1.3.10",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.10/InputLabSetup.exe",
-  "notes": "Fixed fullscreen composition by constraining the main content column to a centered max width and rerendering the generated background on large window resizes so the shell no longer breaks when maximized."
+  "version": "1.3.11",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.11/InputLabSetup.exe",
+  "notes": "Widened the selected sidebar gradient pills so labels like Controller Macro no longer clip inside the active module state."
 }

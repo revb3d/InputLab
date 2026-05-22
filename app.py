@@ -35,7 +35,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.10"
+APP_VERSION = "1.3.11"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -1111,7 +1111,7 @@ class KeyHoldApp:
             command=lambda: self.show_view("keyboard"),
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=176,
+            width=198,
             height=48,
             corner_radius=22,
         )
@@ -1149,7 +1149,7 @@ class KeyHoldApp:
             command=lambda: self.show_view("macro"),
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=176,
+            width=198,
             height=48,
             corner_radius=22,
         )
@@ -1245,7 +1245,7 @@ class KeyHoldApp:
             command=lambda: self.show_view("settings"),
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=176,
+            width=198,
             height=48,
             corner_radius=22,
         )
