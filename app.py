@@ -33,7 +33,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.1"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -637,6 +637,10 @@ class KeyHoldApp:
         self.overlay_window = None
         self.overlay_labels = {}
         self.overlay_update_after_id = None
+        self.macro_progress_after_id = None
+        self.macro_progress_pending = {}
+        self.macro_progress_min_interval = 0.05
+        self.macro_progress_next_due = 0.0
         self.tray_icon = None
         self.tray_thread = None
         self.exiting_to_system = False
@@ -3047,9 +3051,6 @@ class KeyHoldApp:
         self.save_config()
 
     def disable_overlay_window(self) -> None:
-        if self.overlay_update_after_id is not None:
-            self.root.after_cancel(self.overlay_update_after_id)
-            self.overlay_update_after_id = None
         if self.overlay_window is not None:
             try:
                 self.overlay_window.destroy()
@@ -3071,9 +3072,46 @@ class KeyHoldApp:
         }
         for key, label in self.overlay_labels.items():
             label.configure(text=values.get(key, ""))
-        if self.overlay_update_after_id is not None:
-            self.root.after_cancel(self.overlay_update_after_id)
-        self.overlay_update_after_id = self.root.after(200, self.refresh_overlay_contents)
+
+    def queue_macro_progress_update(
+        self,
+        *,
+        current_step: str | None = None,
+        last_action: str | None = None,
+        next_action: str | None = None,
+        loop_count: str | None = None,
+        force: bool = False,
+    ) -> None:
+        if current_step is not None:
+            self.macro_progress_pending["current_step"] = current_step
+        if last_action is not None:
+            self.macro_progress_pending["last_action"] = last_action
+        if next_action is not None:
+            self.macro_progress_pending["next_action"] = next_action
+        if loop_count is not None:
+            self.macro_progress_pending["loop_count"] = loop_count
+
+        if self.macro_progress_after_id is not None:
+            return
+
+        now = time.perf_counter()
+        delay_ms = 0 if force or now >= self.macro_progress_next_due else int((self.macro_progress_next_due - now) * 1000)
+        self.macro_progress_after_id = self.root.after(delay_ms, self.flush_macro_progress_update)
+
+    def flush_macro_progress_update(self) -> None:
+        self.macro_progress_after_id = None
+        pending = self.macro_progress_pending
+        self.macro_progress_pending = {}
+        if "current_step" in pending:
+            self.macro_current_step_var.set(pending["current_step"])
+        if "last_action" in pending:
+            self.macro_last_action_var.set(pending["last_action"])
+        if "next_action" in pending:
+            self.macro_next_action_var.set(pending["next_action"])
+        if "loop_count" in pending:
+            self.macro_loop_var.set(pending["loop_count"])
+        self.macro_progress_next_due = time.perf_counter() + self.macro_progress_min_interval
+        self.refresh_overlay_contents()
 
     def build_tray_image(self):
         try:
@@ -3602,28 +3640,20 @@ class KeyHoldApp:
         while self.macro_running.is_set():
             loop_count += 1
             self.active_macro_loop_count = loop_count
-            self.root.after(0, lambda lc=loop_count: self.macro_loop_var.set(f"Loop count: {lc}"))
+            self.queue_macro_progress_update(loop_count=f"Loop count: {loop_count}", force=True)
             for index, step in enumerate(steps, start=1):
                 if not self.macro_running.is_set():
                     break
                 self.press_virtual_button(index, len(steps), step["button"], step["hold_ms"], step["delay_ms"])
             if self.macro_running.is_set() and profile["interval_seconds"] > 0:
-                self.root.after(
-                    0,
-                    lambda lc=loop_count: self.macro_last_action_var.set(
-                        f"Last action: Finished loop {lc}"
-                    ),
-                )
-                self.root.after(
-                    0,
-                    lambda: self.macro_current_step_var.set("Current step: Waiting for next loop"),
+                self.queue_macro_progress_update(
+                    current_step="Current step: Waiting for next loop",
+                    last_action=f"Last action: Finished loop {loop_count}",
+                    force=True,
                 )
                 self.sleep_with_cancel(profile["interval_seconds"])
 
-        self.root.after(
-            0,
-            self.on_macro_loop_complete,
-        )
+        self.root.after(0, self.on_macro_loop_complete)
 
     def press_virtual_button(
         self,
@@ -3639,21 +3669,11 @@ class KeyHoldApp:
         enum_name = BUTTON_ENUM_NAMES[button_name]
         button_enum = getattr(vg.XUSB_BUTTON, enum_name)
 
-        self.root.after(
-            0,
-            lambda: self.macro_current_step_var.set(
-                f"Current step: {step_index}/{total_steps} - {button_name}"
-            ),
-        )
-        self.root.after(
-            0,
-            lambda: self.macro_last_action_var.set(
-                f"Last action: Pressed {button_name} for {hold_ms} ms"
-            ),
-        )
-        self.root.after(
-            0,
-            lambda: self.macro_next_action_var.set(f"Next action in: {hold_ms} ms"),
+        self.queue_macro_progress_update(
+            current_step=f"Current step: {step_index}/{total_steps} - {button_name}",
+            last_action=f"Last action: Pressed {button_name} for {hold_ms} ms",
+            next_action=f"Next action in: {hold_ms} ms",
+            force=True,
         )
 
         self.virtual_gamepad.press_button(button=button_enum)
@@ -3662,44 +3682,30 @@ class KeyHoldApp:
 
         self.virtual_gamepad.release_button(button=button_enum)
         self.virtual_gamepad.update()
-        self.root.after(
-            0,
-            lambda: self.macro_last_action_var.set(
-                f"Last action: Released {button_name}"
-            ),
+        self.queue_macro_progress_update(
+            last_action=f"Last action: Released {button_name}",
+            force=True,
         )
         if delay_ms > 0:
-            self.root.after(
-                0,
-                lambda: self.macro_next_action_var.set(f"Next action in: {delay_ms} ms"),
-            )
+            self.queue_macro_progress_update(next_action=f"Next action in: {delay_ms} ms", force=True)
         self.sleep_with_cancel(delay_ms / 1000, "next step", button_name)
 
     def sleep_with_cancel(self, seconds: float, phase: str | None = None, button_name: str | None = None) -> None:
         end_time = time.perf_counter() + seconds
+        last_bucket = None
         while self.macro_running.is_set() and time.perf_counter() < end_time:
             remaining_ms = max(0, int((end_time - time.perf_counter()) * 1000))
+            bucket = remaining_ms // 50
+            if bucket == last_bucket:
+                time.sleep(0.01)
+                continue
+            last_bucket = bucket
             if phase == "release" and button_name:
-                self.root.after(
-                    0,
-                    lambda ms=remaining_ms, name=button_name: self.macro_next_action_var.set(
-                        f"Next action in: {ms} ms until {name} releases"
-                    ),
-                )
+                self.queue_macro_progress_update(next_action=f"Next action in: {remaining_ms} ms until {button_name} releases")
             elif phase == "next step":
-                self.root.after(
-                    0,
-                    lambda ms=remaining_ms: self.macro_next_action_var.set(
-                        f"Next action in: {ms} ms"
-                    ),
-                )
+                self.queue_macro_progress_update(next_action=f"Next action in: {remaining_ms} ms")
             elif phase is None and seconds > 0:
-                self.root.after(
-                    0,
-                    lambda ms=remaining_ms: self.macro_next_action_var.set(
-                        f"Next action in: {ms} ms"
-                    ),
-                )
+                self.queue_macro_progress_update(next_action=f"Next action in: {remaining_ms} ms")
             time.sleep(0.01)
 
     def on_macro_loop_complete(self) -> None:
@@ -4157,6 +4163,9 @@ class KeyHoldApp:
         if self.window_capture_after_id is not None:
             self.root.after_cancel(self.window_capture_after_id)
             self.window_capture_after_id = None
+        if self.macro_progress_after_id is not None:
+            self.root.after_cancel(self.macro_progress_after_id)
+            self.macro_progress_after_id = None
 
         self.disable_overlay_window()
         self.stop_tray_icon()

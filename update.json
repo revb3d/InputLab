@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.0/InputLabSetup.exe",
-  "notes": "Added a controller macro recorder, system tray mode, per-profile notes, step reordering, an always-on-top overlay widget, persisted run statistics, and a hotkey summary in settings."
+  "version": "1.3.1",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.1/InputLabSetup.exe",
+  "notes": "Optimized UI update scheduling, removed unnecessary overlay polling, and reduced macro progress repaint pressure while keeping the feature set and visual design unchanged."
 }
