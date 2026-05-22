@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download InputLab</title>
+  <meta name="description" content="Download the latest InputLab Windows installer.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="site-shell">
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="noise"></div>
+
+  <header class="topbar frame">
+    <a class="brand" href="/">
+      <img src="/assets/InputLabLogo.png" alt="InputLab logo">
+      <span>InputLab</span>
+    </a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/download">Download</a>
+      <a href="/donate">Donate</a>
+      <a href="https://github.com/revb3d/InputLab" target="_blank" rel="noreferrer">GitHub</a>
+    </nav>
+    <a class="button button-primary" data-download-latest href="https://github.com/revb3d/InputLab/releases/latest/download/InputLabSetup.exe">Download installer</a>
+  </header>
+
+  <main>
+    <section class="section page-hero frame reveal">
+      <div class="eyebrow">Release channel</div>
+      <h1>Download the latest public build of InputLab.</h1>
+      <p>The primary button below updates itself from the newest GitHub release so the landing site does not hardcode stale installer links.</p>
+      <div class="cta-row">
+        <a class="button button-primary" data-download-latest href="https://github.com/revb3d/InputLab/releases/latest/download/InputLabSetup.exe">Download latest installer</a>
+        <a class="button button-secondary" data-release-link href="https://github.com/revb3d/InputLab/releases/latest" target="_blank" rel="noreferrer">Open release page</a>
+      </div>
+    </section>
+
+    <section class="section release-grid">
+      <article class="release-panel reveal">
+        <div class="eyebrow">Current build</div>
+        <h2 data-latest-version>Loading latest release…</h2>
+        <div class="release-meta">
+          <div>
+            <span>Published</span>
+            <strong data-published-at>Checking GitHub…</strong>
+          </div>
+          <div>
+            <span>Installer size</span>
+            <strong data-asset-size>Checking GitHub…</strong>
+          </div>
+        </div>
+        <pre class="release-notes" data-release-notes>Fetching release notes…</pre>
+      </article>
+
+      <article class="release-panel reveal">
+        <div class="eyebrow">Install notes</div>
+        <h2>What you get</h2>
+        <ul class="check-list">
+          <li>Windows installer package</li>
+          <li>Keyboard hold hotkeys</li>
+          <li>Controller macro profiles and recorder</li>
+          <li>Profile import and export</li>
+          <li>Updater support from GitHub releases</li>
+        </ul>
+        <div class="cta-column">
+          <a class="button button-primary" data-download-latest href="https://github.com/revb3d/InputLab/releases/latest/download/InputLabSetup.exe">Start download</a>
+          <a class="button button-secondary" href="/donate">Support development</a>
+          <a class="button button-secondary" href="/">Back to homepage</a>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="footer frame">
+    <div>
+      <a class="brand brand-footer" href="/">
+        <img src="/assets/InputLabLogo.png" alt="InputLab logo">
+        <span>InputLab</span>
+      </a>
+      <p>Latest installer and release notes sourced from the public GitHub release feed.</p>
+    </div>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/donate">Donate</a>
+      <a href="https://github.com/revb3d/InputLab/releases/latest" target="_blank" rel="noreferrer">Latest release</a>
+      <a href="https://github.com/revb3d/InputLab" target="_blank" rel="noreferrer">Source</a>
+    </div>
+  </footer>
+
+  <script src="/script.js"></script>
+</body>
+</html>

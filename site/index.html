@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InputLab | Desktop Input Automation for Windows</title>
+  <meta name="description" content="InputLab is a Windows desktop app for hotkey key holds, controller macros, profiles, live progress, and fast installer updates.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="site-shell">
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="noise"></div>
+
+  <header class="topbar frame">
+    <a class="brand" href="/">
+      <img src="/assets/InputLabLogo.png" alt="InputLab logo">
+      <span>InputLab</span>
+    </a>
+    <nav class="nav">
+      <a href="#features">Features</a>
+      <a href="/download">Download</a>
+      <a href="/donate">Donate</a>
+      <a href="https://github.com/revb3d/InputLab" target="_blank" rel="noreferrer">GitHub</a>
+    </nav>
+    <a class="button button-primary" href="/download">Get InputLab</a>
+  </header>
+
+  <main>
+    <section class="hero frame section">
+      <div class="hero-copy reveal">
+        <div class="eyebrow">Windows desktop utility for input automation</div>
+        <h1>Build keyboard holds and controller macros that <span>actually stay usable</span>.</h1>
+        <p>
+          InputLab gives you global hotkeys, profile-based Xbox controller macros, live progress,
+          import and export, updater support, and a UI built for fast iteration instead of clutter.
+        </p>
+        <div class="cta-row">
+          <a class="button button-primary" href="/download">Download latest build</a>
+          <a class="button button-secondary" href="#features">See what it does</a>
+        </div>
+        <div class="proof-row">
+          <div class="proof-chip">
+            <strong data-latest-version>Latest build</strong>
+            <span>Pulls directly from GitHub Releases</span>
+          </div>
+          <div class="proof-chip">
+            <strong>Windows desktop app</strong>
+            <span>Keyboard hold, controller macros, profiles</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-stack reveal">
+        <article class="stack-card stack-card-large">
+          <span class="stack-label">Core modules</span>
+          <h2>Keyboard hold</h2>
+          <p>Toggle any key into a held state from a global hotkey without tabbing back into the app.</p>
+        </article>
+        <article class="stack-card">
+          <span class="stack-label">Controller profiles</span>
+          <p>Loop timed Xbox button sequences with profile hotkeys, notes, and import/export.</p>
+        </article>
+        <article class="stack-card">
+          <span class="stack-label">Live progress</span>
+          <p>Current step, last action, next delay, and loop count are always visible.</p>
+        </article>
+        <article class="stack-card">
+          <span class="stack-label">Shipping</span>
+          <p>Installer builds, release downloads, in-app updater, tray mode, and theme presets.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="features" class="section split-grid">
+      <div class="section-copy reveal">
+        <div class="eyebrow">Why it is built this way</div>
+        <h2>Fast control surface for repetitive input flows, not a bloated macro suite.</h2>
+        <p>
+          The design target is short setup time, clear state, and reliable switching between
+          keyboard and controller automation. The UI stays dark, focused, and operational.
+        </p>
+
+        <div class="feature-list">
+          <article class="feature-item">
+            <div class="feature-icon"></div>
+            <div>
+              <h3>Global keyboard holds</h3>
+              <p>Bind one hotkey to hold another key down until toggled off.</p>
+            </div>
+          </article>
+          <article class="feature-item">
+            <div class="feature-icon"></div>
+            <div>
+              <h3>Profile-driven controller macros</h3>
+              <p>Separate hotkeys, notes, window detection, recorder support, and step timing per profile.</p>
+            </div>
+          </article>
+          <article class="feature-item">
+            <div class="feature-icon"></div>
+            <div>
+              <h3>Real visibility while running</h3>
+              <p>Live progress, status overlays, session stats, and active state indicators reduce guesswork.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div class="showcase reveal">
+        <div class="showcase-shell">
+          <div class="showcase-gradient"></div>
+          <div class="showcase-panel">
+            <div class="mini-toolbar">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="mini-grid">
+              <div class="mini-col">
+                <div class="mini-chip mini-chip-active">Keyboard Hold</div>
+                <div class="mini-chip">Controller Macro</div>
+                <div class="mini-chip">Settings</div>
+              </div>
+              <div class="mini-main">
+                <div class="mini-line long"></div>
+                <div class="mini-status">Ready</div>
+                <div class="mini-line medium"></div>
+                <div class="mini-stats">
+                  <div class="mini-tile"></div>
+                  <div class="mini-tile"></div>
+                  <div class="mini-tile"></div>
+                  <div class="mini-tile"></div>
+                </div>
+                <div class="mini-rows">
+                  <div class="mini-row"></div>
+                  <div class="mini-row"></div>
+                  <div class="mini-row"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section stats-band reveal">
+      <article class="stat-card">
+        <span>01</span>
+        <strong>Profiles and hotkeys</strong>
+        <p>Separate controller profiles can each own their own hotkey and matching rules.</p>
+      </article>
+      <article class="stat-card">
+        <span>02</span>
+        <strong>Recorder and reordering</strong>
+        <p>Capture steps, move them up or down, and keep timing under direct control.</p>
+      </article>
+      <article class="stat-card">
+        <span>03</span>
+        <strong>Installer + updater</strong>
+        <p>Download builds, share profiles, and keep installs current through GitHub releases.</p>
+      </article>
+    </section>
+
+    <section class="section dual-cta">
+      <article class="cta-panel reveal">
+        <div class="eyebrow">Download</div>
+        <h2>Get the latest Windows installer.</h2>
+        <p>The download page reads the newest public GitHub release and exposes the installer directly.</p>
+        <div class="cta-row">
+          <a class="button button-primary" href="/download">Open download page</a>
+          <a class="button button-secondary" data-release-link href="https://github.com/revb3d/InputLab/releases/latest" target="_blank" rel="noreferrer">Latest release notes</a>
+        </div>
+      </article>
+      <article class="cta-panel reveal">
+        <div class="eyebrow">Support</div>
+        <h2>Fund more desktop tooling and updates.</h2>
+        <p>The donate page routes to GitHub Sponsors and a few other support actions without dead links.</p>
+        <div class="cta-row">
+          <a class="button button-primary" href="/donate">Open donate page</a>
+          <a class="button button-secondary" href="https://github.com/revb3d/InputLab" target="_blank" rel="noreferrer">View source</a>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="footer frame">
+    <div>
+      <a class="brand brand-footer" href="/">
+        <img src="/assets/InputLabLogo.png" alt="InputLab logo">
+        <span>InputLab</span>
+      </a>
+      <p>Desktop input automation for Windows, built around speed, profiles, and clean state visibility.</p>
+    </div>
+    <div class="footer-links">
+      <a href="#features">Features</a>
+      <a href="/download">Download</a>
+      <a href="/donate">Donate</a>
+      <a href="https://github.com/revb3d/InputLab/releases/latest" target="_blank" rel="noreferrer">Changelog</a>
+    </div>
+  </footer>
+
+  <script src="/script.js"></script>
+</body>
+</html>
