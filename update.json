@@ -1,5 +1,5 @@
 {
-  "version": "1.3.4",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.4/InputLabSetup.exe",
-  "notes": "Fixed the theme-switch rebuild path so the active section is forced back into the fresh layout instead of leaving the content area blank after changing color presets."
+  "version": "1.3.5",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.5/InputLabSetup.exe",
+  "notes": "Added a website-matched desktop theme, made it the default palette, and migrated older default installs so the app visuals line up with the InputLab site."
 }

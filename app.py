@@ -35,12 +35,34 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.4"
+APP_VERSION = "1.3.5"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
 HIGH_PERFORMANCE_UI = True
 THEME_PRESETS = {
+    "Website Match": {
+        "app_bg": "#0c0d0d",
+        "shell": "#121414",
+        "shell_high": "#171a19",
+        "panel": "#141616",
+        "panel_high": "#1c1f1e",
+        "panel_low": "#101212",
+        "field": "#1a1d1d",
+        "field_hover": "#232727",
+        "border": "#2f3432",
+        "border_soft": "#232825",
+        "text": "#f2f2ed",
+        "muted": "#9b9f98",
+        "faint": "#72776f",
+        "blue": "#e18c4d",
+        "blue_hover": "#efaa63",
+        "green": "#4fc39c",
+        "green_deep": "#2f7f68",
+        "red": "#e36d61",
+        "amber": "#d7db57",
+        "cyan": "#4ca7e6",
+    },
     "Graphite + Electric Lime": {
         "app_bg": "#090c0f",
         "shell": "#10151a",
@@ -174,7 +196,7 @@ THEME_PRESETS = {
         "cyan": "#cabfff",
     },
 }
-DEFAULT_THEME_NAME = "Graphite + Electric Lime"
+DEFAULT_THEME_NAME = "Website Match"
 THEME = THEME_PRESETS[DEFAULT_THEME_NAME].copy()
 
 
@@ -714,6 +736,8 @@ class KeyHoldApp:
         config["overlay_enabled"] = bool(raw_data.get("overlay_enabled", config["overlay_enabled"]))
         config["close_to_tray"] = bool(raw_data.get("close_to_tray", config["close_to_tray"]))
         config["minimize_to_tray"] = bool(raw_data.get("minimize_to_tray", config["minimize_to_tray"]))
+        if config["theme_name"] == "Graphite + Electric Lime":
+            config["theme_name"] = DEFAULT_THEME_NAME
         if config["theme_name"] not in THEME_PRESETS:
             config["theme_name"] = DEFAULT_THEME_NAME
         raw_profiles = raw_data.get("macro_profiles")
@@ -2085,6 +2109,7 @@ class KeyHoldApp:
         ).pack(anchor="w", padx=18, pady=(16, 10))
 
         for title, detail in (
+            ("Website Match", "Website palette translated into the desktop app: dark charcoal surfaces with amber, lime, teal, and blue accents."),
             ("Graphite + Electric Lime", "Dark graphite shell with sharp lime action states and a fast tool feel."),
             ("Midnight Navy + Amber", "Deep navy surfaces with amber highlights and a more premium dashboard tone."),
             ("Carbon + Ice Blue", "Cold carbon panels with icy blue accents and cleaner technical contrast."),
