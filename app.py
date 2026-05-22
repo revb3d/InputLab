@@ -35,7 +35,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.3"
+APP_VERSION = "1.3.4"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -897,6 +897,7 @@ class KeyHoldApp:
 
     def build_ui(self) -> None:
         self.update_startup_status("Building interface...")
+        target_view = self.current_view if self.current_view in {"keyboard", "macro", "settings"} else "keyboard"
         if self.ui_root is not None:
             self.ui_root.destroy()
             self.ui_root = None
@@ -1261,7 +1262,9 @@ class KeyHoldApp:
         self.build_keyboard_tab(self.keyboard_view)
         self.build_macro_tab(self.macro_view)
         self.build_settings_tab(self.settings_view)
-        self.show_view(self.current_view if self.current_view in {"keyboard", "macro", "settings"} else "keyboard", instant=True)
+        # Force the rebuilt section frame to mount after a full UI refresh such as a theme change.
+        self.current_view = ""
+        self.show_view(target_view, instant=True)
         self.update_activity_indicators()
 
     def on_body_scroll_frame_configure(self, _event=None) -> None:
