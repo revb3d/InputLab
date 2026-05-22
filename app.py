@@ -35,7 +35,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.8"
+APP_VERSION = "1.3.9"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -960,8 +960,8 @@ class KeyHoldApp:
             self.root,
             fg_color=THEME["shell"],
             corner_radius=24,
-            border_color=THEME["border"],
-            border_width=1,
+            border_color=THEME["shell"],
+            border_width=0,
         )
         outer.pack(fill="both", expand=True, padx=18, pady=18)
         self.ui_root = outer
@@ -1100,19 +1100,30 @@ class KeyHoldApp:
         )
         self.keyboard_activity_indicator.pack(side="left", padx=(2, 10))
 
+        self.keyboard_nav_host = ctk.CTkFrame(self.keyboard_nav_row, fg_color="transparent")
+        self.keyboard_nav_host.pack(side="left", fill="x", expand=True)
+        self.keyboard_nav_active_button = GradientButton(
+            self.keyboard_nav_host,
+            text="Keyboard Hold",
+            command=lambda: self.show_view("keyboard"),
+            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
+            width=176,
+            height=48,
+            corner_radius=22,
+        )
         self.keyboard_nav_button = ctk.CTkButton(
-            self.keyboard_nav_row,
+            self.keyboard_nav_host,
             text="Keyboard Hold",
             height=48,
-            corner_radius=16,
+            corner_radius=22,
             anchor="w",
-            fg_color=THEME["green_deep"],
-            hover_color=THEME["green"],
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
             text_color=THEME["text"],
             font=self.ui_font(14, "bold", role="body"),
             command=lambda: self.show_view("keyboard"),
         )
-        self.keyboard_nav_button.pack(side="left", fill="x", expand=True)
 
         self.macro_nav_row = ctk.CTkFrame(sidebar, fg_color="transparent")
         self.macro_nav_row.pack(fill="x", padx=14)
@@ -1127,19 +1138,30 @@ class KeyHoldApp:
         )
         self.macro_activity_indicator.pack(side="left", padx=(2, 10))
 
+        self.macro_nav_host = ctk.CTkFrame(self.macro_nav_row, fg_color="transparent")
+        self.macro_nav_host.pack(side="left", fill="x", expand=True)
+        self.macro_nav_active_button = GradientButton(
+            self.macro_nav_host,
+            text="Controller Macro",
+            command=lambda: self.show_view("macro"),
+            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
+            width=176,
+            height=48,
+            corner_radius=22,
+        )
         self.macro_nav_button = ctk.CTkButton(
-            self.macro_nav_row,
+            self.macro_nav_host,
             text="Controller Macro",
             height=48,
-            corner_radius=16,
+            corner_radius=22,
             anchor="w",
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
-            text_color="#dce7f8",
+            text_color=THEME["text"],
             font=self.ui_font(14, "bold", role="body"),
             command=lambda: self.show_view("macro"),
         )
-        self.macro_nav_button.pack(side="left", fill="x", expand=True)
 
         self.add_accent_line(sidebar, THEME["blue"], height=3, padx=18, pady=(18, 12))
 
@@ -1214,26 +1236,35 @@ class KeyHoldApp:
         self.settings_nav_row = ctk.CTkFrame(sidebar, fg_color="transparent")
         self.settings_nav_row.pack(fill="x", padx=14, pady=(0, 14))
 
+        self.settings_nav_active_button = GradientButton(
+            self.settings_nav_row,
+            text="Settings",
+            command=lambda: self.show_view("settings"),
+            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
+            width=176,
+            height=48,
+            corner_radius=22,
+        )
         self.settings_nav_button = ctk.CTkButton(
             self.settings_nav_row,
             text="Settings",
             height=48,
-            corner_radius=16,
+            corner_radius=22,
             anchor="w",
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
-            text_color="#dce7f8",
+            text_color=THEME["text"],
             font=self.ui_font(14, "bold", role="body"),
             command=lambda: self.show_view("settings"),
         )
-        self.settings_nav_button.pack(fill="x", expand=True)
 
         self.content_area = ctk.CTkFrame(
             body,
             fg_color=THEME["panel_low"],
             corner_radius=20,
-            border_color=THEME["border_soft"],
-            border_width=1,
+            border_color=THEME["panel_low"],
+            border_width=0,
         )
         self.content_area.pack(side="left", fill="both", expand=True)
 
@@ -1379,55 +1410,19 @@ class KeyHoldApp:
 
         if view_name == "keyboard":
             self.keyboard_view.pack(fill="both", expand=True)
-            self.keyboard_nav_button.configure(
-                fg_color=THEME["green_deep"],
-                hover_color=THEME["green"],
-                text_color=THEME["text"],
-            )
-            self.macro_nav_button.configure(
-                fg_color=THEME["field"],
-                hover_color=THEME["field_hover"],
-                text_color="#dce7f8",
-            )
-            self.settings_nav_button.configure(
-                fg_color=THEME["field"],
-                hover_color=THEME["field_hover"],
-                text_color="#dce7f8",
-            )
+            self.set_nav_button_state(self.keyboard_nav_active_button, self.keyboard_nav_button, True)
+            self.set_nav_button_state(self.macro_nav_active_button, self.macro_nav_button, False)
+            self.set_nav_button_state(self.settings_nav_active_button, self.settings_nav_button, False)
         elif view_name == "macro":
             self.macro_view.pack(fill="both", expand=True)
-            self.macro_nav_button.configure(
-                fg_color=THEME["green_deep"],
-                hover_color=THEME["green"],
-                text_color=THEME["text"],
-            )
-            self.keyboard_nav_button.configure(
-                fg_color=THEME["field"],
-                hover_color=THEME["field_hover"],
-                text_color="#dce7f8",
-            )
-            self.settings_nav_button.configure(
-                fg_color=THEME["field"],
-                hover_color=THEME["field_hover"],
-                text_color="#dce7f8",
-            )
+            self.set_nav_button_state(self.macro_nav_active_button, self.macro_nav_button, True)
+            self.set_nav_button_state(self.keyboard_nav_active_button, self.keyboard_nav_button, False)
+            self.set_nav_button_state(self.settings_nav_active_button, self.settings_nav_button, False)
         else:
             self.settings_view.pack(fill="both", expand=True)
-            self.settings_nav_button.configure(
-                fg_color=THEME["green_deep"],
-                hover_color=THEME["green"],
-                text_color=THEME["text"],
-            )
-            self.keyboard_nav_button.configure(
-                fg_color=THEME["field"],
-                hover_color=THEME["field_hover"],
-                text_color="#dce7f8",
-            )
-            self.macro_nav_button.configure(
-                fg_color=THEME["field"],
-                hover_color=THEME["field_hover"],
-                text_color="#dce7f8",
-            )
+            self.set_nav_button_state(self.settings_nav_active_button, self.settings_nav_button, True)
+            self.set_nav_button_state(self.keyboard_nav_active_button, self.keyboard_nav_button, False)
+            self.set_nav_button_state(self.macro_nav_active_button, self.macro_nav_button, False)
         self.body_canvas.yview_moveto(0)
         self.update_activity_indicators()
         if not HIGH_PERFORMANCE_UI:
@@ -1643,6 +1638,7 @@ class KeyHoldApp:
 
         profile_section = self.build_section_frame(tab)
         profile_section.pack(fill="x", padx=20, pady=(0, 16))
+        self.profile_section = profile_section
 
         ctk.CTkLabel(
             profile_section,
@@ -1651,20 +1647,8 @@ class KeyHoldApp:
             text_color=THEME["text"],
         ).pack(anchor="w", padx=18, pady=(16, 10))
 
-        self.profile_tabs = ctk.CTkSegmentedButton(
-            profile_section,
-            height=38,
-            corner_radius=12,
-            fg_color=THEME["field"],
-            selected_color=THEME["green_deep"],
-            selected_hover_color=THEME["green"],
-            unselected_color=THEME["panel_high"],
-            unselected_hover_color=THEME["field_hover"],
-            text_color="#dce7f8",
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.on_profile_tab_selected,
-        )
-        self.profile_tabs.pack(fill="x", padx=18, pady=(0, 10))
+        self.profile_tabs_frame = ctk.CTkFrame(profile_section, fg_color="transparent")
+        self.profile_tabs_frame.pack(fill="x", padx=18, pady=(0, 10))
 
         profile_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
         profile_actions.pack(fill="x", padx=18, pady=(0, 10))
@@ -2587,6 +2571,14 @@ class KeyHoldApp:
         entry.insert(0, value)
         return entry
 
+    def set_nav_button_state(self, active_button, inactive_button, active: bool) -> None:
+        active_button.pack_forget()
+        inactive_button.pack_forget()
+        if active:
+            active_button.pack(fill="x", expand=True)
+        else:
+            inactive_button.pack(fill="x", expand=True)
+
     def create_startup_splash(self) -> None:
         splash = tk.Toplevel(self.root)
         splash.overrideredirect(True)
@@ -3092,14 +3084,51 @@ class KeyHoldApp:
         )
 
     def refresh_profile_tabs(self) -> None:
-        if not hasattr(self, "profile_tabs"):
+        if not hasattr(self, "profile_tabs_frame"):
             return
 
         values = [profile["name"] for profile in self.macro_profiles]
         if not values:
             values = ["Main Macro"]
-        self.profile_tabs.configure(values=values)
-        self.profile_tabs.set(self.get_selected_profile()["name"])
+        selected_name = self.get_selected_profile()["name"]
+        for child in self.profile_tabs_frame.winfo_children():
+            child.destroy()
+
+        self.profile_tabs_frame.update_idletasks()
+        available_width = self.profile_tabs_frame.winfo_width()
+        if available_width <= 10:
+            available_width = max(self.profile_section.winfo_width() - 36, 320) if hasattr(self, "profile_section") else 920
+        gap = 10 * max(len(values) - 1, 0)
+        button_width = max(150, min(available_width - gap, max((available_width - gap) // max(len(values), 1), 150)))
+
+        for index, value in enumerate(values):
+            if value == selected_name:
+                button = GradientButton(
+                    self.profile_tabs_frame,
+                    text=value,
+                    command=lambda target=value: self.on_profile_tab_selected(target),
+                    colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
+                    hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
+                    width=button_width,
+                    height=40,
+                    corner_radius=14,
+                )
+                button.pack(side="left", fill="x", expand=True)
+            else:
+                button = ctk.CTkButton(
+                    self.profile_tabs_frame,
+                    text=value,
+                    height=40,
+                    corner_radius=14,
+                    fg_color=THEME["panel_high"],
+                    hover_color=THEME["field_hover"],
+                    text_color=THEME["text"],
+                    font=self.ui_font(13, "bold", role="body"),
+                    command=lambda target=value: self.on_profile_tab_selected(target),
+                )
+                button.pack(side="left", fill="x", expand=True)
+            if index < len(values) - 1:
+                ctk.CTkFrame(self.profile_tabs_frame, fg_color="transparent", width=10).pack(side="left")
         self.delete_profile_button.configure(state="normal" if len(self.macro_profiles) > 1 else "disabled")
         self.refresh_hotkey_summary()
 
