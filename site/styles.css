@@ -462,7 +462,15 @@ main {
 }
 
 .mini-chip {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
   height: 48px;
+  color: rgba(244, 246, 252, 0.95);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .mini-chip-active {
@@ -470,8 +478,15 @@ main {
 }
 
 .mini-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 140px;
   height: 42px;
+  color: rgba(244, 246, 252, 0.95);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .mini-line {
