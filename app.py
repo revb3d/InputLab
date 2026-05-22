@@ -36,7 +36,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.13"
+APP_VERSION = "1.3.14"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -2494,8 +2494,6 @@ class KeyHoldApp:
             border_color=THEME["border_soft"],
             border_width=1,
         )
-        self.register_glow_card(card)
-
         badge = ctk.CTkLabel(
             card,
             textvariable=status_var,
@@ -2561,7 +2559,6 @@ class KeyHoldApp:
             border_color=THEME["border_soft"],
             border_width=1,
         )
-        self.register_glow_card(frame)
         return frame
 
     def add_labeled_entry(
@@ -2874,42 +2871,6 @@ class KeyHoldApp:
 
         self.background_animation_after_id = self.root.after(1800, tick)
 
-    def register_glow_card(self, widget) -> None:
-        widget._glow_base_fg = THEME["panel"]
-        widget._glow_base_border = THEME["border_soft"]
-        widget._glow_after_id = None
-        widget.bind("<Enter>", lambda _event, target=widget: self.animate_glow_card(target, True), add="+")
-        widget.bind("<Leave>", lambda _event, target=widget: self.animate_glow_card(target, False), add="+")
-
-    def animate_glow_card(self, widget, hovering: bool) -> None:
-        after_id = getattr(widget, "_glow_after_id", None)
-        if after_id is not None:
-            self.root.after_cancel(after_id)
-            widget._glow_after_id = None
-
-        start_fg = widget.cget("fg_color")
-        if isinstance(start_fg, tuple):
-            start_fg = start_fg[1]
-        start_border = widget.cget("border_color")
-        if isinstance(start_border, tuple):
-            start_border = start_border[1]
-        base_fg = getattr(widget, "_glow_base_fg", THEME["panel"])
-        base_border = getattr(widget, "_glow_base_border", THEME["border_soft"])
-        target_fg = self.mix_theme_hex(base_fg, THEME["shell_high"], 0.38) if hovering else base_fg
-        target_border = self.mix_theme_hex(base_border, THEME["cyan"], 0.44) if hovering else base_border
-        frames = 4
-
-        def step(frame: int) -> None:
-            ratio = frame / frames
-            fg = self.mix_theme_hex(start_fg, target_fg, ratio)
-            border = self.mix_theme_hex(start_border, target_border, ratio)
-            widget.configure(fg_color=fg, border_color=border)
-            if frame < frames:
-                widget._glow_after_id = self.root.after(26, lambda: step(frame + 1))
-            else:
-                widget._glow_after_id = None
-
-        step(1)
 
     def draw_gradient_strip(self, canvas: tk.Canvas, height: int) -> None:
         canvas.delete("all")
