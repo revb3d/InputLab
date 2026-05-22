@@ -35,7 +35,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.5"
+APP_VERSION = "1.3.6"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -661,6 +661,7 @@ class KeyHoldApp:
         self.overlay_window = None
         self.overlay_labels = {}
         self.overlay_update_after_id = None
+        self.window_opaque_after_id = None
         self.macro_progress_after_id = None
         self.macro_progress_pending = {}
         self.macro_progress_min_interval = 0.05
@@ -685,6 +686,8 @@ class KeyHoldApp:
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.bind("<Unmap>", self.on_window_unmap)
+        self.root.bind("<Configure>", self.on_root_configure, add="+")
+        self.root.bind("<Map>", self.on_root_map, add="+")
         if self.overlay_enabled:
             self.root.after(900, self.enable_overlay_window)
 
@@ -2717,6 +2720,23 @@ class KeyHoldApp:
             self.root.attributes("-transparentcolor", "")
         except Exception:
             pass
+
+    def schedule_window_opaque_reset(self, delay_ms: int = 70) -> None:
+        if self.window_opaque_after_id is not None:
+            self.root.after_cancel(self.window_opaque_after_id)
+        self.window_opaque_after_id = self.root.after(delay_ms, self.flush_window_opaque_reset)
+
+    def flush_window_opaque_reset(self) -> None:
+        self.window_opaque_after_id = None
+        self.ensure_window_opaque()
+
+    def on_root_configure(self, _event=None) -> None:
+        if not self.root.winfo_viewable():
+            return
+        self.schedule_window_opaque_reset()
+
+    def on_root_map(self, _event=None) -> None:
+        self.schedule_window_opaque_reset(20)
 
     def register_key_hold_hotkey(self, hotkey: str) -> None:
         if self.key_hold_hotkey_handle is not None:
