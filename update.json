@@ -1,5 +1,5 @@
 {
-  "version": "1.3.14",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.14/InputLabSetup.exe",
-  "notes": "Removed the unstable frame-hover glow layer while keeping the safer website-style ambient background motion and CTA glow changes."
+  "version": "1.3.15",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.15/InputLabSetup.exe",
+  "notes": "Restored the last stable gradient button renderer while keeping the safer sidebar width and background fixes so selected tabs no longer draw incorrectly."
 }
