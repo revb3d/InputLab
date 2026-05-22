@@ -1,6 +1,8 @@
 import json
 import ctypes
+import os
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -33,7 +35,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.1"
+APP_VERSION = "1.3.2"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -4049,14 +4051,38 @@ class KeyHoldApp:
         self.open_update_button.configure(state="disabled", text="Launching...")
         self.launch_update_installer(installer_path)
 
+    def get_runtime_executable_path(self) -> Path | None:
+        if getattr(sys, "frozen", False):
+            return Path(sys.executable).resolve()
+
+        candidate = APP_DIR / "dist" / "InputLab" / "InputLab.exe"
+        if candidate.exists():
+            return candidate.resolve()
+        return None
+
     def launch_update_installer(self, installer_path: Path) -> None:
+        current_pid = str(os.getpid())
+        app_executable = self.get_runtime_executable_path()
+        app_executable_arg = f'"{app_executable}"' if app_executable is not None else ""
+        log_path = installer_path.with_suffix(".log")
         launcher_path = installer_path.with_suffix(".cmd")
         launcher_path.write_text(
             "\n".join(
                 [
                     "@echo off",
-                    "ping 127.0.0.1 -n 3 >nul",
-                    f'start "" "{installer_path}" /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART',
+                    "setlocal",
+                    f'set "TARGET_PID={current_pid}"',
+                    f'set "INSTALLER={installer_path}"',
+                    f'set "APP_EXE={app_executable or ""}"',
+                    ":wait_for_inputlab",
+                    'tasklist /FI "PID eq %TARGET_PID%" | find "%TARGET_PID%" >nul',
+                    "if not errorlevel 1 (",
+                    "  timeout /t 1 /nobreak >nul",
+                    "  goto wait_for_inputlab",
+                    ")",
+                    f'start /wait "" "%INSTALLER%" /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /LOG="{log_path}"',
+                    'if exist "%APP_EXE%" start "" "%APP_EXE%"',
+                    "endlocal",
                 ]
             ),
             encoding="utf-8",
