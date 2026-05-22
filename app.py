@@ -35,7 +35,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.2"
+APP_VERSION = "1.3.3"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -4063,31 +4063,40 @@ class KeyHoldApp:
     def launch_update_installer(self, installer_path: Path) -> None:
         current_pid = str(os.getpid())
         app_executable = self.get_runtime_executable_path()
-        app_executable_arg = f'"{app_executable}"' if app_executable is not None else ""
         log_path = installer_path.with_suffix(".log")
-        launcher_path = installer_path.with_suffix(".cmd")
+        installer_text = str(installer_path).replace("'", "''")
+        app_executable_text = str(app_executable or "").replace("'", "''")
+        log_path_text = str(log_path).replace("'", "''")
+        launcher_path = installer_path.with_suffix(".ps1")
         launcher_path.write_text(
             "\n".join(
                 [
-                    "@echo off",
-                    "setlocal",
-                    f'set "TARGET_PID={current_pid}"',
-                    f'set "INSTALLER={installer_path}"',
-                    f'set "APP_EXE={app_executable or ""}"',
-                    ":wait_for_inputlab",
-                    'tasklist /FI "PID eq %TARGET_PID%" | find "%TARGET_PID%" >nul',
-                    "if not errorlevel 1 (",
-                    "  timeout /t 1 /nobreak >nul",
-                    "  goto wait_for_inputlab",
-                    ")",
-                    f'start /wait "" "%INSTALLER%" /SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS /LOG="{log_path}"',
-                    'if exist "%APP_EXE%" start "" "%APP_EXE%"',
-                    "endlocal",
+                    f"$targetPid = {current_pid}",
+                    f"$installer = '{installer_text}'",
+                    f"$appExe = '{app_executable_text}'",
+                    f"$logPath = '{log_path_text}'",
+                    "while (Get-Process -Id $targetPid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 750 }",
+                    "$arguments = @('/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/FORCECLOSEAPPLICATIONS', \"/LOG=$logPath\")",
+                    "$process = Start-Process -FilePath $installer -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden",
+                    "Start-Sleep -Seconds 2",
+                    "if ((Test-Path $appExe) -and $process.ExitCode -eq 0) { Start-Process -FilePath $appExe | Out-Null }",
                 ]
             ),
             encoding="utf-8",
         )
-        subprocess.Popen(["cmd", "/c", str(launcher_path)], creationflags=0x08000000)
+        subprocess.Popen(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-WindowStyle",
+                "Hidden",
+                "-File",
+                str(launcher_path),
+            ],
+            creationflags=0x08000000,
+        )
         self.exiting_to_system = True
         self.on_close()
 

@@ -1,5 +1,5 @@
 {
-  "version": "1.3.2",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.2/InputLabSetup.exe",
-  "notes": "Fixed the in-app updater so it waits for InputLab to fully exit, installs synchronously, and then reopens the newly installed exe instead of leaving the old version in place."
+  "version": "1.3.3",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.3/InputLabSetup.exe",
+  "notes": "Reworked the in-app updater to use a detached PowerShell helper that waits for the old process, runs the installer with explicit wait semantics, and then relaunches the installed exe."
 }
