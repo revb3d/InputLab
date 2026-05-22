@@ -17,7 +17,7 @@ from tkinter import filedialog
 
 import customtkinter as ctk
 import keyboard
-from PIL import Image
+from PIL import Image, ImageTk, ImageDraw, ImageFilter
 try:
     import pystray
     from pystray import MenuItem as TrayMenuItem
@@ -35,10 +35,18 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.6"
+APP_VERSION = "1.3.7"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
+FONT_DIR = APP_DIR / "assets" / "fonts"
+MANROPE_REGULAR_PATH = FONT_DIR / "Manrope-Regular.ttf"
+MANROPE_SEMIBOLD_PATH = FONT_DIR / "Manrope-SemiBold.ttf"
+MANROPE_EXTRABOLD_PATH = FONT_DIR / "Manrope-ExtraBold.ttf"
+SYNE_BOLD_PATH = FONT_DIR / "Syne-Bold.ttf"
+SYNE_EXTRABOLD_PATH = FONT_DIR / "Syne-ExtraBold.ttf"
+BODY_FONT_FAMILY = "Manrope"
+DISPLAY_FONT_FAMILY = "Syne"
 HIGH_PERFORMANCE_UI = True
 THEME_PRESETS = {
     "Website Match": {
@@ -206,8 +214,8 @@ class GradientButton(tk.Canvas):
         parent,
         text: str,
         command,
-        colors: tuple[str, str],
-        hover_colors: tuple[str, str],
+        colors: tuple[str, ...],
+        hover_colors: tuple[str, ...],
         width: int = 174,
         height: int = 48,
         corner_radius: int = 16,
@@ -282,7 +290,7 @@ class GradientButton(tk.Canvas):
         if was_pressed and inside:
             self.command()
 
-    def animate_to(self, target_colors: tuple[str, str]) -> None:
+    def animate_to(self, target_colors: tuple[str, ...]) -> None:
         if self.animation_after_id is not None:
             self.after_cancel(self.animation_after_id)
             self.animation_after_id = None
@@ -304,7 +312,7 @@ class GradientButton(tk.Canvas):
 
         step(1)
 
-    def draw(self, colors: tuple[str, str], pressed: bool = False) -> None:
+    def draw(self, colors: tuple[str, ...], pressed: bool = False) -> None:
         self.current_colors = colors
         self.delete("all")
         if not pressed:
@@ -323,7 +331,7 @@ class GradientButton(tk.Canvas):
             (self.button_height // 2) + (1 if pressed else 0),
             text=self.text,
             fill=THEME["text"],
-            font=("Segoe UI Semibold", 15, "bold"),
+            font=(BODY_FONT_FAMILY, 15, "bold"),
         )
 
     def draw_shadow(self, radius: int) -> None:
@@ -340,7 +348,7 @@ class GradientButton(tk.Canvas):
         self.create_line(width, radius + 4, width, height - radius, fill=shadow)
 
     def draw_sheen(self) -> None:
-        band_width = 72
+        band_width = 82
         center = band_width / 2
         gradient = self.get_gradient(self.current_colors)
         for offset in range(band_width):
@@ -367,7 +375,7 @@ class GradientButton(tk.Canvas):
             if not self.is_hovering:
                 self.sheen_after_id = None
                 return
-            self.sheen_x += 34
+            self.sheen_x += 36
             self.draw(self.current_colors)
             if self.sheen_x < self.button_width + 52:
                 self.sheen_after_id = self.after(8, step)
@@ -404,7 +412,7 @@ class GradientButton(tk.Canvas):
         self.create_line(0, radius, 0, height - radius, fill=outline)
         self.create_line(width, radius, width, height - radius, fill=outline)
 
-    def darken_pair(self, colors: tuple[str, str], factor: float) -> tuple[str, str]:
+    def darken_pair(self, colors: tuple[str, ...], factor: float) -> tuple[str, ...]:
         return tuple(self.scale_hex(color, factor) for color in colors)
 
     def scale_hex(self, color: str, factor: float) -> str:
@@ -438,19 +446,29 @@ class GradientButton(tk.Canvas):
             spans.append((top, bottom))
         return spans
 
-    def get_gradient(self, colors: tuple[str, str]) -> list[str]:
+    def get_gradient(self, colors: tuple[str, ...]) -> list[str]:
         if colors in self.gradient_cache:
             return self.gradient_cache[colors]
-
-        left = self.hex_to_rgb(colors[0])
-        right = self.hex_to_rgb(colors[1])
         gradient = []
         for x in range(self.button_width):
             ratio = x / max(self.button_width - 1, 1)
-            values = [
-                int(left[index] + (right[index] - left[index]) * ratio)
-                for index in range(3)
-            ]
+            if len(colors) == 2:
+                left = self.hex_to_rgb(colors[0])
+                right = self.hex_to_rgb(colors[1])
+                values = [
+                    int(left[index] + (right[index] - left[index]) * ratio)
+                    for index in range(3)
+                ]
+            else:
+                stop_count = len(colors) - 1
+                segment = min(int(ratio * stop_count), stop_count - 1)
+                local_ratio = (ratio - (segment / stop_count)) * stop_count
+                left = self.hex_to_rgb(colors[segment])
+                right = self.hex_to_rgb(colors[segment + 1])
+                values = [
+                    int(left[index] + (right[index] - left[index]) * local_ratio)
+                    for index in range(3)
+                ]
             gradient.append(f"#{values[0]:02x}{values[1]:02x}{values[2]:02x}")
         self.gradient_cache[colors] = gradient
         return gradient
@@ -584,6 +602,7 @@ DEFAULT_CONFIG = {
 class KeyHoldApp:
     def __init__(self) -> None:
         self.configure_windows_dpi_awareness()
+        self.register_private_fonts()
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
         self.apply_windows_app_id()
@@ -601,6 +620,8 @@ class KeyHoldApp:
         self.root.configure(fg_color=THEME["app_bg"])
         self.logo_image = None
         self.logo_photo = None
+        self.background_photo = None
+        self.background_label = None
         self.apply_window_icon()
         self.startup_splash = None
         self.startup_status_var = tk.StringVar(value="Loading InputLab...")
@@ -928,6 +949,7 @@ class KeyHoldApp:
         if self.ui_root is not None:
             self.ui_root.destroy()
             self.ui_root = None
+        self.render_app_background()
         self.root.configure(fg_color=THEME["app_bg"])
         self.root.unbind_all("<MouseWheel>")
 
@@ -970,7 +992,7 @@ class KeyHoldApp:
         title = ctk.CTkLabel(
             title_block,
             text="InputLab",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=30, weight="bold"),
+            font=self.ui_font(34, "bold", role="display"),
             text_color=THEME["text"],
         )
         title.pack(anchor="w")
@@ -978,7 +1000,7 @@ class KeyHoldApp:
         subtitle = ctk.CTkLabel(
             title_block,
             text="Hotkeys, controller macros, profiles, and live action feedback in one focused control surface.",
-            font=ctk.CTkFont(family="Segoe UI", size=14),
+            font=self.ui_font(15, role="body"),
             text_color=THEME["muted"],
         )
         subtitle.pack(anchor="w", pady=(6, 0))
@@ -991,7 +1013,7 @@ class KeyHoldApp:
             corner_radius=16,
             fg_color=THEME["field"],
             text_color=THEME["muted"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
         )
         version_chip.pack(side="right")
 
@@ -1050,7 +1072,7 @@ class KeyHoldApp:
         nav_title = ctk.CTkLabel(
             sidebar,
             text="Sections",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=16, weight="bold"),
+            font=self.ui_font(18, "bold", role="display"),
             text_color=THEME["text"],
         )
         nav_title.pack(anchor="w", padx=18, pady=(18, 4))
@@ -1058,7 +1080,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             sidebar,
             text="Live modules",
-            font=ctk.CTkFont(family="Segoe UI", size=11),
+            font=self.ui_font(11, role="body"),
             text_color=THEME["faint"],
         ).pack(anchor="w", padx=18, pady=(0, 16))
 
@@ -1084,7 +1106,7 @@ class KeyHoldApp:
             fg_color=THEME["green_deep"],
             hover_color=THEME["green"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            font=self.ui_font(14, "bold", role="body"),
             command=lambda: self.show_view("keyboard"),
         )
         self.keyboard_nav_button.pack(side="left", fill="x", expand=True)
@@ -1111,7 +1133,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color="#dce7f8",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            font=self.ui_font(14, "bold", role="body"),
             command=lambda: self.show_view("macro"),
         )
         self.macro_nav_button.pack(side="left", fill="x", expand=True)
@@ -1130,14 +1152,14 @@ class KeyHoldApp:
         ctk.CTkLabel(
             update_card,
             text="Updates",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            font=self.ui_font(14, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", padx=14, pady=(14, 6))
 
         ctk.CTkLabel(
             update_card,
             textvariable=self.update_status_var,
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             text_color="#dce7f8",
             wraplength=154,
             justify="left",
@@ -1146,7 +1168,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             update_card,
             textvariable=self.update_detail_var,
-            font=ctk.CTkFont(family="Segoe UI", size=12),
+            font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
             wraplength=154,
             justify="left",
@@ -1160,7 +1182,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.check_for_updates,
         )
         self.check_updates_button.pack(fill="x", padx=14, pady=(0, 8))
@@ -1173,7 +1195,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.download_and_install_update,
             state="disabled",
         )
@@ -1182,7 +1204,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             sidebar,
             text="App",
-            font=ctk.CTkFont(family="Segoe UI", size=11),
+            font=self.ui_font(11, role="body"),
             text_color=THEME["faint"],
         ).pack(anchor="w", padx=18, pady=(0, 8))
 
@@ -1198,7 +1220,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color="#dce7f8",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            font=self.ui_font(14, "bold", role="body"),
             command=lambda: self.show_view("settings"),
         )
         self.settings_nav_button.pack(fill="x", expand=True)
@@ -1245,7 +1267,7 @@ class KeyHoldApp:
         self.section_transition_title = ctk.CTkLabel(
             self.section_transition_panel,
             text="InputLab",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=24, weight="bold"),
+            font=self.ui_font(24, "bold", role="display"),
             text_color=THEME["text"],
         )
         self.section_transition_title.pack(pady=(34, 10))
@@ -1253,7 +1275,7 @@ class KeyHoldApp:
         self.section_transition_label = ctk.CTkLabel(
             self.section_transition_panel,
             text="",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=20, weight="bold"),
+            font=self.ui_font(20, "bold", role="display"),
             text_color=THEME["text"],
         )
         self.section_transition_label.pack()
@@ -1261,7 +1283,7 @@ class KeyHoldApp:
         self.section_transition_detail = ctk.CTkLabel(
             self.section_transition_panel,
             text="Preparing the interface...",
-            font=ctk.CTkFont(family="Segoe UI", size=12),
+            font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
         )
         self.section_transition_detail.pack(pady=(8, 18))
@@ -1501,7 +1523,7 @@ class KeyHoldApp:
             border_color=THEME["border"],
             border_width=1,
             text_color="#dce7f8",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            font=self.ui_font(14, "bold", role="body"),
             command=self.capture_target_key,
         )
         capture_target_button.pack(anchor="e")
@@ -1513,8 +1535,8 @@ class KeyHoldApp:
             actions,
             text="Apply Keyboard Mapping",
             command=self.apply_keyboard_mapping,
-            colors=(THEME["blue"], THEME["cyan"]),
-            hover_colors=(THEME["blue_hover"], THEME["cyan"]),
+            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
             width=300,
             height=48,
         )
@@ -1530,7 +1552,7 @@ class KeyHoldApp:
             border_color=THEME["border"],
             border_width=1,
             text_color="#dce7f8",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             command=self.force_release,
         )
         release_button.pack(side="left", padx=(12, 0))
@@ -1538,7 +1560,7 @@ class KeyHoldApp:
         footer = ctk.CTkLabel(
             tab,
             text="The keyboard toggle keeps working globally while the app is open.",
-            font=ctk.CTkFont(family="Segoe UI", size=12),
+            font=self.ui_font(12, role="body"),
             text_color=THEME["faint"],
         )
         footer.pack(anchor="w", padx=24, pady=(6, 0))
@@ -1549,14 +1571,14 @@ class KeyHoldApp:
         ctk.CTkLabel(
             update_section,
             text="Automatic updates",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            font=self.ui_font(14, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", padx=18, pady=(16, 6))
 
         ctk.CTkLabel(
             update_section,
             text="This build is locked to the official InputLab update feed and checks automatically after launch.",
-            font=ctk.CTkFont(family="Segoe UI", size=12),
+            font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
             wraplength=620,
             justify="left",
@@ -1565,7 +1587,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             update_section,
             text=DEFAULT_UPDATE_MANIFEST_URL,
-            font=ctk.CTkFont(family="Consolas", size=12),
+            font=self.ui_font(12, role="body"),
             text_color="#9fb2cf",
             wraplength=620,
             justify="left",
@@ -1597,7 +1619,7 @@ class KeyHoldApp:
         progress_header = ctk.CTkLabel(
             progress_header_row,
             text="Live progress",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             text_color=THEME["text"],
         )
         progress_header.pack(side="left")
@@ -1622,7 +1644,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             profile_section,
             text="Profiles",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", padx=18, pady=(16, 10))
 
@@ -1636,7 +1658,7 @@ class KeyHoldApp:
             unselected_color=THEME["panel_high"],
             unselected_hover_color=THEME["field_hover"],
             text_color="#dce7f8",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.on_profile_tab_selected,
         )
         self.profile_tabs.pack(fill="x", padx=18, pady=(0, 10))
@@ -1652,7 +1674,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.add_macro_profile,
         )
         self.add_profile_button.pack(side="left")
@@ -1665,7 +1687,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.duplicate_macro_profile,
         )
         self.duplicate_profile_button.pack(side="left", padx=(10, 0))
@@ -1678,7 +1700,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.reset_macro_profile,
         )
         self.reset_profile_button.pack(side="left", padx=(10, 0))
@@ -1691,7 +1713,7 @@ class KeyHoldApp:
             fg_color="#25151a",
             hover_color="#3b1b23",
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.delete_macro_profile,
         )
         self.delete_profile_button.pack(side="left", padx=(10, 0))
@@ -1707,7 +1729,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.import_macro_profiles,
         )
         self.import_profiles_button.pack(side="left")
@@ -1720,7 +1742,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.export_macro_profiles,
         )
         self.export_profiles_button.pack(side="left", padx=(10, 0))
@@ -1766,7 +1788,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             condition_card,
             text="Run only when focused app matches",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            font=self.ui_font(14, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", pady=(4, 8))
 
@@ -1799,7 +1821,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.arm_window_capture,
         )
         self.capture_window_button.pack(side="left", padx=(18, 0))
@@ -1807,7 +1829,7 @@ class KeyHoldApp:
         condition_hint = ctk.CTkLabel(
             condition_card,
             text="Leave both blank to let the profile run anywhere. If you use Capture In 3s, tab into the game before the countdown finishes.",
-            font=ctk.CTkFont(family="Segoe UI", size=12),
+            font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
             wraplength=560,
             justify="left",
@@ -1817,7 +1839,7 @@ class KeyHoldApp:
         macro_hint = ctk.CTkLabel(
             setup,
             text="Each step presses one virtual Xbox button, waits, releases it, then waits again before the next step. After the full sequence finishes, the macro waits for the loop interval before starting over.",
-            font=ctk.CTkFont(family="Segoe UI", size=12),
+            font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
             wraplength=560,
             justify="left",
@@ -1835,7 +1857,7 @@ class KeyHoldApp:
             text="Step",
             width=56,
             anchor="w",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             text_color=THEME["muted"],
         ).pack(side="left")
         ctk.CTkLabel(
@@ -1843,7 +1865,7 @@ class KeyHoldApp:
             text="Button",
             width=120,
             anchor="w",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             text_color=THEME["muted"],
         ).pack(side="left", padx=(0, 10))
         ctk.CTkLabel(
@@ -1851,7 +1873,7 @@ class KeyHoldApp:
             text="Hold (ms)",
             width=100,
             anchor="w",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             text_color=THEME["muted"],
         ).pack(side="left", padx=(0, 10))
         ctk.CTkLabel(
@@ -1859,7 +1881,7 @@ class KeyHoldApp:
             text="Delay after (ms)",
             width=130,
             anchor="w",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             text_color=THEME["muted"],
         ).pack(side="left", padx=(0, 10))
         ctk.CTkLabel(
@@ -1867,7 +1889,7 @@ class KeyHoldApp:
             text="",
             width=176,
             anchor="w",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             text_color=THEME["muted"],
         ).pack(side="left")
 
@@ -1887,7 +1909,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.add_macro_step,
         )
         self.add_step_button.pack(side="left")
@@ -1900,7 +1922,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.toggle_macro_recorder,
         )
         self.record_macro_button.pack(side="left", padx=(10, 0))
@@ -1913,7 +1935,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             command=self.clear_macro_steps,
         )
         self.clear_steps_button.pack(side="left", padx=(10, 0))
@@ -1921,7 +1943,7 @@ class KeyHoldApp:
         recorder_hint = ctk.CTkLabel(
             steps_frame,
             text="Recorder keys: A, B, X, Y, Q=LB, E=RB, 1=BACK, 2=START, arrows=DPAD. Start recorder, play the sequence on the keyboard, then stop recorder to replace the steps.",
-            font=ctk.CTkFont(family="Segoe UI", size=12),
+            font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
             wraplength=760,
             justify="left",
@@ -1934,7 +1956,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             notes_section,
             text="Profile notes",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", padx=18, pady=(16, 8))
 
@@ -1946,7 +1968,7 @@ class KeyHoldApp:
             border_color=THEME["border"],
             fg_color=THEME["field"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI", size=13),
+            font=self.ui_font(13, role="body"),
             wrap="word",
         )
         self.profile_notes_text.pack(fill="x", padx=18, pady=(0, 16))
@@ -1957,7 +1979,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             stats_section,
             text="Run statistics",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", padx=18, pady=(16, 8))
 
@@ -1965,7 +1987,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             stats_section,
             textvariable=self.profile_stats_var,
-            font=ctk.CTkFont(family="Segoe UI", size=13),
+            font=self.ui_font(13, role="body"),
             text_color=THEME["muted"],
             justify="left",
             anchor="w",
@@ -1983,7 +2005,7 @@ class KeyHoldApp:
                 height=40,
                 corner_radius=12,
                 fg_color=THEME["field"],
-                font=ctk.CTkFont(family="Segoe UI", size=13),
+                font=self.ui_font(13, role="body"),
                 text_color="#c6d2e5",
                 anchor="w",
                 justify="left",
@@ -2004,8 +2026,8 @@ class KeyHoldApp:
             actions,
             text="Apply Macro",
             command=self.apply_macro_mapping,
-            colors=(THEME["blue"], THEME["cyan"]),
-            hover_colors=(THEME["blue_hover"], THEME["cyan"]),
+            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
             width=174,
             height=48,
         )
@@ -2032,7 +2054,7 @@ class KeyHoldApp:
             border_color=THEME["border"],
             border_width=1,
             text_color="#dce7f8",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             command=self.stop_macro,
         )
         stop_button.pack(side="left", padx=(12, 0))
@@ -2043,7 +2065,7 @@ class KeyHoldApp:
                 "This tab uses a virtual Xbox 360 controller. "
                 "If it does not start, install the ViGEmBus driver when prompted by vgamepad."
             ),
-            font=ctk.CTkFont(family="Segoe UI", size=12),
+            font=self.ui_font(12, role="body"),
             text_color=THEME["faint"],
             wraplength=560,
             justify="left",
@@ -2069,14 +2091,14 @@ class KeyHoldApp:
         ctk.CTkLabel(
             theme_section,
             text="Theme preset",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", padx=18, pady=(16, 6))
 
         ctk.CTkLabel(
             theme_section,
             text="Each preset swaps the entire color system: accents, active states, cards, borders, and live progress surfaces.",
-            font=ctk.CTkFont(family="Segoe UI", size=12),
+            font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
             wraplength=760,
             justify="left",
@@ -2095,7 +2117,7 @@ class KeyHoldApp:
                 fg_color=THEME["green_deep"] if theme_name == self.theme_name else THEME["field"],
                 hover_color=THEME["green"] if theme_name == self.theme_name else THEME["field_hover"],
                 text_color=THEME["text"] if theme_name == self.theme_name else "#dce7f8",
-                font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+                font=self.ui_font(13, "bold", role="body"),
                 command=lambda value=theme_name: self.change_theme(value),
             )
             button.pack(fill="x", pady=5)
@@ -2107,7 +2129,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             preview_section,
             text="Included presets",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", padx=18, pady=(16, 10))
 
@@ -2125,13 +2147,13 @@ class KeyHoldApp:
             ctk.CTkLabel(
                 item,
                 text=title,
-                font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+                font=self.ui_font(13, "bold", role="body"),
                 text_color=THEME["text"],
             ).pack(anchor="w", padx=14, pady=(10, 2))
             ctk.CTkLabel(
                 item,
                 text=detail,
-                font=ctk.CTkFont(family="Segoe UI", size=12),
+                font=self.ui_font(12, role="body"),
                 text_color=THEME["muted"],
                 wraplength=760,
                 justify="left",
@@ -2143,7 +2165,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             behavior_section,
             text="App behavior",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", padx=18, pady=(16, 10))
 
@@ -2166,7 +2188,7 @@ class KeyHoldApp:
                 button_color=THEME["text"],
                 button_hover_color=THEME["text"],
                 text_color=THEME["text"],
-                font=ctk.CTkFont(family="Segoe UI", size=13),
+                font=self.ui_font(13, role="body"),
                 command=command,
             )
             toggle.pack(anchor="w", padx=18, pady=6)
@@ -2177,7 +2199,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             hotkey_section,
             text="Registered profile hotkeys",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", padx=18, pady=(16, 8))
 
@@ -2185,7 +2207,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             hotkey_section,
             textvariable=self.hotkey_summary_var,
-            font=ctk.CTkFont(family="Segoe UI", size=12),
+            font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
             wraplength=760,
             justify="left",
@@ -2222,7 +2244,7 @@ class KeyHoldApp:
             height=34,
             corner_radius=17,
             fg_color=THEME["field"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=13, weight="bold"),
+            font=self.ui_font(13, "bold", role="body"),
             text_color=THEME["text"],
         )
         number_label.pack(side="left", padx=(12, 14), pady=10)
@@ -2252,7 +2274,7 @@ class KeyHoldApp:
             border_color=THEME["border"],
             fg_color=THEME["field"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI", size=13),
+            font=self.ui_font(13, role="body"),
         )
         hold_entry.pack(side="left", padx=(0, 10))
         hold_entry.insert(0, str(step.get("hold_ms", 90)))
@@ -2265,7 +2287,7 @@ class KeyHoldApp:
             border_color=THEME["border"],
             fg_color=THEME["field"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI", size=13),
+            font=self.ui_font(13, role="body"),
         )
         delay_entry.pack(side="left", padx=(0, 10))
         delay_entry.insert(0, str(step.get("delay_ms", 120)))
@@ -2287,7 +2309,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=12, weight="bold"),
+            font=self.ui_font(12, "bold", role="body"),
             command=lambda target=widget_set: self.move_macro_step(target, -1),
         )
         move_up_button.pack(side="left", padx=(0, 8))
@@ -2302,7 +2324,7 @@ class KeyHoldApp:
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=12, weight="bold"),
+            font=self.ui_font(12, "bold", role="body"),
             command=lambda target=widget_set: self.move_macro_step(target, 1),
         )
         move_down_button.pack(side="left", padx=(0, 8))
@@ -2317,7 +2339,7 @@ class KeyHoldApp:
             fg_color="#25151a",
             hover_color="#3b1b23",
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=12, weight="bold"),
+            font=self.ui_font(12, "bold", role="body"),
             command=lambda target=widget_set: self.remove_macro_step(target),
         )
         remove_button.pack(side="left")
@@ -2465,7 +2487,7 @@ class KeyHoldApp:
             corner_radius=17,
             fg_color=THEME["field"],
             text_color=THEME["text"],
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            font=self.ui_font(14, "bold", role="body"),
         )
         badge.pack(anchor="w", padx=18, pady=(18, 10))
 
@@ -2474,7 +2496,7 @@ class KeyHoldApp:
             textvariable=detail_var,
             wraplength=620,
             justify="left",
-            font=ctk.CTkFont(family="Segoe UI", size=14),
+            font=self.ui_font(14, role="body"),
             text_color="#c6d2e5",
         )
         detail.pack(anchor="w", padx=18, pady=(0, 18))
@@ -2483,9 +2505,16 @@ class KeyHoldApp:
         return card
 
     def add_accent_line(self, parent, color: str, height: int, padx: int, pady) -> None:
-        line = ctk.CTkFrame(parent, fg_color=color, height=height, corner_radius=height)
+        line = tk.Canvas(
+            parent,
+            height=height,
+            bg=THEME["panel"],
+            bd=0,
+            highlightthickness=0,
+            relief="flat",
+        )
         line.pack(fill="x", padx=padx, pady=pady)
-        line.pack_propagate(False)
+        parent.after(0, lambda canvas=line, strip_height=height: self.draw_gradient_strip(canvas, strip_height))
 
     def add_tab_heading(self, parent, title_text: str, subtitle_text: str) -> None:
         heading = ctk.CTkFrame(parent, fg_color=THEME["panel_low"])
@@ -2494,14 +2523,14 @@ class KeyHoldApp:
         ctk.CTkLabel(
             heading,
             text=title_text,
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=24, weight="bold"),
+            font=self.ui_font(25, "bold", role="display"),
             text_color=THEME["text"],
         ).pack(anchor="w")
 
         ctk.CTkLabel(
             heading,
             text=subtitle_text,
-            font=ctk.CTkFont(family="Segoe UI", size=13),
+            font=self.ui_font(13, role="body"),
             text_color=THEME["muted"],
             wraplength=760,
             justify="left",
@@ -2533,7 +2562,7 @@ class KeyHoldApp:
             text=label_text,
             width=120,
             anchor="w",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=14, weight="bold"),
+            font=self.ui_font(14, "bold", role="body"),
             text_color=THEME["text"],
         )
         label.pack(side="left", padx=(0, 14))
@@ -2545,7 +2574,7 @@ class KeyHoldApp:
             "fg_color": THEME["field"],
             "text_color": THEME["text"],
             "placeholder_text": hint_text,
-            "font": ctk.CTkFont(family="Segoe UI", size=14),
+            "font": self.ui_font(14, role="body"),
         }
         if entry_width is not None:
             entry_kwargs["width"] = entry_width
@@ -2570,8 +2599,9 @@ class KeyHoldApp:
         )
         container.pack(fill="both", expand=True, padx=1, pady=1)
 
-        header_line = tk.Frame(container, bg=THEME["blue"], height=4)
+        header_line = tk.Canvas(container, bg=THEME["shell"], height=4, bd=0, highlightthickness=0)
         header_line.pack(fill="x", padx=18, pady=(18, 0))
+        self.draw_gradient_strip(header_line, 4)
 
         if LOGO_PNG_PATH.exists():
             self.splash_logo_image = tk.PhotoImage(file=str(LOGO_PNG_PATH))
@@ -2587,7 +2617,7 @@ class KeyHoldApp:
             text="InputLab",
             bg=THEME["shell"],
             fg=THEME["text"],
-            font=("Segoe UI Semibold", 24, "bold"),
+            font=self.tk_font(26, "bold", role="display"),
         ).pack()
 
         tk.Label(
@@ -2595,7 +2625,7 @@ class KeyHoldApp:
             textvariable=self.startup_status_var,
             bg=THEME["shell"],
             fg=THEME["muted"],
-            font=("Segoe UI", 11),
+            font=self.tk_font(11, "normal", role="body"),
         ).pack(pady=(10, 8))
 
         tk.Label(
@@ -2603,7 +2633,7 @@ class KeyHoldApp:
             text="Loading modules, profiles, and interface state...",
             bg=THEME["shell"],
             fg=THEME["faint"],
-            font=("Segoe UI", 10),
+            font=self.tk_font(10, "normal", role="body"),
         ).pack(pady=(0, 16))
 
         progress_track = tk.Frame(container, bg=THEME["field"], height=8)
@@ -2617,7 +2647,7 @@ class KeyHoldApp:
             text="Please wait",
             bg=THEME["shell"],
             fg=THEME["muted"],
-            font=("Segoe UI Semibold", 10, "bold"),
+            font=self.tk_font(10, "bold", role="body"),
         ).pack(pady=(0, 18))
 
         splash.update_idletasks()
@@ -2659,6 +2689,28 @@ class KeyHoldApp:
         except Exception:
             pass
 
+    def register_private_fonts(self) -> None:
+        try:
+            add_font = ctypes.windll.gdi32.AddFontResourceExW
+            add_font.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.LPVOID]
+            add_font.restype = wintypes.INT
+        except Exception:
+            return
+
+        for font_path in (
+            MANROPE_REGULAR_PATH,
+            MANROPE_SEMIBOLD_PATH,
+            MANROPE_EXTRABOLD_PATH,
+            SYNE_BOLD_PATH,
+            SYNE_EXTRABOLD_PATH,
+        ):
+            if not font_path.exists():
+                continue
+            try:
+                add_font(str(font_path), 0x10, 0)
+            except Exception:
+                continue
+
     def configure_windows_dpi_awareness(self) -> None:
         try:
             dpi_context_per_monitor_v2 = ctypes.c_void_p(-4)
@@ -2687,6 +2739,93 @@ class KeyHoldApp:
         x = max((screen_width - width) // 2, 0)
         y = max((screen_height - height) // 2, 0)
         self.root.geometry(f"{width}x{height}+{x}+{y}")
+
+    def ui_font(self, size: int, weight: str = "normal", role: str = "body") -> ctk.CTkFont:
+        family = DISPLAY_FONT_FAMILY if role == "display" else BODY_FONT_FAMILY
+        return ctk.CTkFont(family=family, size=size, weight=weight)
+
+    def tk_font(self, size: int, weight: str = "normal", role: str = "body") -> tuple[str, int, str]:
+        family = DISPLAY_FONT_FAMILY if role == "display" else BODY_FONT_FAMILY
+        return (family, size, weight)
+
+    def render_app_background(self) -> None:
+        width = max(self.root.winfo_width(), 1600)
+        height = max(self.root.winfo_height(), 960)
+        base = Image.new("RGBA", (width, height), (12, 13, 13, 255))
+
+        top_left = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        top_left_draw = ImageDraw.Draw(top_left)
+        top_left_draw.ellipse(
+            (-320, -180, int(width * 0.52), int(height * 0.92)),
+            fill=(225, 140, 77, 82),
+        )
+        top_left_draw.ellipse(
+            (int(width * 0.08), int(height * 0.10), int(width * 0.78), int(height * 0.88)),
+            fill=(215, 219, 87, 34),
+        )
+        top_left = top_left.filter(ImageFilter.GaussianBlur(160))
+
+        bottom_right = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        bottom_right_draw = ImageDraw.Draw(bottom_right)
+        bottom_right_draw.ellipse(
+            (int(width * 0.56), int(height * 0.56), width + 260, height + 260),
+            fill=(76, 167, 230, 80),
+        )
+        bottom_right_draw.ellipse(
+            (int(width * 0.34), int(height * 0.28), width + 120, int(height * 1.02)),
+            fill=(79, 195, 156, 38),
+        )
+        bottom_right = bottom_right.filter(ImageFilter.GaussianBlur(170))
+
+        center_shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        center_shadow_draw = ImageDraw.Draw(center_shadow)
+        center_shadow_draw.ellipse(
+            (int(width * 0.12), int(height * 0.08), int(width * 0.92), int(height * 0.96)),
+            fill=(8, 10, 10, 70),
+        )
+        center_shadow = center_shadow.filter(ImageFilter.GaussianBlur(130))
+
+        vignette = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        vignette_draw = ImageDraw.Draw(vignette)
+        vignette_draw.rectangle((0, 0, width, height), fill=(0, 0, 0, 32))
+        vignette = vignette.filter(ImageFilter.GaussianBlur(90))
+
+        base.alpha_composite(top_left)
+        base.alpha_composite(bottom_right)
+        base.alpha_composite(center_shadow)
+        base.alpha_composite(vignette)
+
+        self.background_photo = ImageTk.PhotoImage(base)
+        if self.background_label is None:
+            self.background_label = tk.Label(self.root, image=self.background_photo, bd=0, highlightthickness=0)
+            self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+            self.background_label.lower()
+        else:
+            self.background_label.configure(image=self.background_photo)
+            self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+            self.background_label.lower()
+
+    def draw_gradient_strip(self, canvas: tk.Canvas, height: int) -> None:
+        canvas.delete("all")
+        canvas.update_idletasks()
+        width = max(canvas.winfo_width(), 2)
+        colors = (THEME["blue"], THEME["amber"], THEME["green"], THEME["cyan"])
+        segments = len(colors) - 1
+        for x in range(width):
+            ratio = x / max(width - 1, 1)
+            segment = min(int(ratio * segments), segments - 1)
+            local_ratio = (ratio - (segment / segments)) * segments
+            color = self.mix_theme_hex(colors[segment], colors[segment + 1], local_ratio)
+            canvas.create_line(x, 0, x, height, fill=color)
+
+    def mix_theme_hex(self, left: str, right: str, ratio: float) -> str:
+        left_rgb = GradientButton.hex_to_rgb(left)
+        right_rgb = GradientButton.hex_to_rgb(right)
+        values = [
+            int(left_rgb[index] + (right_rgb[index] - left_rgb[index]) * ratio)
+            for index in range(3)
+        ]
+        return f"#{values[0]:02x}{values[1]:02x}{values[2]:02x}"
 
     def show_centered_window(self) -> None:
         self.update_startup_status("Finalizing layout...")
@@ -3073,7 +3212,7 @@ class KeyHoldApp:
         ctk.CTkLabel(
             shell,
             text="InputLab Overlay",
-            font=ctk.CTkFont(family="Segoe UI Semibold", size=15, weight="bold"),
+            font=self.ui_font(15, "bold", role="body"),
             text_color=THEME["text"],
         ).pack(anchor="w", padx=14, pady=(12, 6))
 
@@ -3081,7 +3220,7 @@ class KeyHoldApp:
             label = ctk.CTkLabel(
                 shell,
                 text="",
-                font=ctk.CTkFont(family="Segoe UI", size=12),
+                font=self.ui_font(12, role="body"),
                 text_color=THEME["muted"],
                 anchor="w",
                 justify="left",
@@ -4291,3 +4430,4 @@ class KeyHoldApp:
 if __name__ == "__main__":
     app = KeyHoldApp()
     app.run()
+
