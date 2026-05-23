@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.23"
+APP_VERSION = "1.3.24"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -1000,7 +1000,7 @@ class KeyHoldApp:
         top_nav = ctk.CTkFrame(outer, fg_color="transparent")
         top_nav.pack(fill="x", pady=(0, 14))
 
-        self.top_nav_inner = ctk.CTkFrame(top_nav, fg_color="transparent", width=1180, height=42)
+        self.top_nav_inner = ctk.CTkFrame(top_nav, fg_color="transparent", width=1360, height=42)
         self.top_nav_inner.pack(anchor="n")
         self.top_nav_inner.pack_propagate(False)
         self.top_nav_inner.grid_columnconfigure(0, weight=1)
@@ -1097,7 +1097,7 @@ class KeyHoldApp:
         self.add_accent_line(self.content_area, THEME["blue"], height=3, padx=24, pady=(22, 0))
 
         intro = ctk.CTkFrame(self.content_area, fg_color="transparent")
-        intro.pack(fill="x", padx=28, pady=(18, 12))
+        intro.pack(fill="x", padx=20, pady=(18, 10))
         intro.grid_columnconfigure(0, weight=1)
         intro.grid_columnconfigure(1, weight=0)
 
@@ -1114,7 +1114,7 @@ class KeyHoldApp:
             text="Functional dashboard for keyboard holds, controller macros, profiles, and updater controls.",
             font=self.ui_font(16, "bold", role="display"),
             text_color=THEME["text"],
-            wraplength=560,
+            wraplength=640,
             justify="left",
         ).pack(anchor="w")
         ctk.CTkLabel(
@@ -1122,7 +1122,7 @@ class KeyHoldApp:
             text="Built to stay compact and readable at normal desktop sizes without cutting off controls or status.",
             font=self.ui_font(13, role="body"),
             text_color=THEME["muted"],
-            wraplength=560,
+            wraplength=640,
             justify="left",
         ).pack(anchor="w", pady=(8, 0))
 
@@ -1157,7 +1157,7 @@ class KeyHoldApp:
         self.intro_status_detail.pack(anchor="w", padx=18, pady=(6, 0))
 
         tabs_row = ctk.CTkFrame(self.content_area, fg_color="transparent")
-        tabs_row.pack(fill="x", padx=28, pady=(0, 14))
+        tabs_row.pack(fill="x", padx=20, pady=(0, 12))
 
         tabs_inner = ctk.CTkFrame(tabs_row, fg_color="transparent")
         tabs_inner.pack(anchor="w")
@@ -1250,7 +1250,7 @@ class KeyHoldApp:
             border_color=THEME["border_soft"],
             border_width=1,
         )
-        self.content_shell.pack(fill="both", expand=True, padx=28, pady=(0, 28))
+        self.content_shell.pack(fill="both", expand=True, padx=20, pady=(0, 24))
 
         self.workspace_accent = tk.Canvas(
             self.content_shell,
@@ -1322,7 +1322,7 @@ class KeyHoldApp:
             self.body_canvas_last_width = event.width
             self.body_canvas.itemconfigure(self.body_canvas_window, width=event.width)
             if hasattr(self, "page_shell"):
-                shell_width = min(max(event.width - 36, 980), 1180)
+                shell_width = min(max(event.width - 36, 1080), 1360)
                 side_padding = max((event.width - shell_width) // 2, 0)
                 self.page_shell.pack_configure(padx=side_padding)
                 self.page_shell.configure(width=shell_width)
@@ -1351,15 +1351,16 @@ class KeyHoldApp:
 
     def build_dashboard_tab_shell(self, parent, title_text: str, subtitle_text: str) -> tuple[ctk.CTkFrame, ctk.CTkFrame, ctk.CTkFrame]:
         shell = ctk.CTkFrame(parent, fg_color="transparent")
-        shell.pack(fill="both", expand=True, padx=20, pady=(18, 22))
-        shell.grid_columnconfigure(0, weight=9)
-        shell.grid_columnconfigure(1, weight=3)
+        shell.pack(fill="both", expand=True, padx=14, pady=(16, 20))
+        shell.grid_columnconfigure(0, weight=14, minsize=760)
+        shell.grid_columnconfigure(1, weight=6, minsize=384)
 
         left = ctk.CTkFrame(shell, fg_color="transparent")
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 18))
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
 
-        right = ctk.CTkFrame(shell, fg_color="transparent", width=280)
+        right = ctk.CTkFrame(shell, fg_color="transparent", width=384)
         right.grid(row=0, column=1, sticky="new")
+        right.grid_propagate(False)
 
         ctk.CTkLabel(
             left,
@@ -1372,7 +1373,7 @@ class KeyHoldApp:
             text=subtitle_text,
             font=self.ui_font(13, role="body"),
             text_color=THEME["muted"],
-            wraplength=700,
+            wraplength=920,
             justify="left",
         ).pack(anchor="w", pady=(8, 14))
 
@@ -1662,9 +1663,10 @@ class KeyHoldApp:
         )
 
         config_split = ctk.CTkFrame(left, fg_color="transparent")
-        config_split.pack(fill="x", pady=(0, 12))
-        config_split.grid_columnconfigure(0, weight=5)
-        config_split.grid_columnconfigure(1, weight=4)
+        config_split.pack(fill="x", pady=(0, 10))
+        config_split.grid_columnconfigure(0, weight=7, minsize=440)
+        config_split.grid_columnconfigure(1, weight=5, minsize=380)
+        self.config_split = config_split
 
         profile_section = self.build_section_frame(config_split)
         profile_section.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
@@ -1678,16 +1680,11 @@ class KeyHoldApp:
         ).pack(anchor="w", padx=18, pady=(16, 10))
 
         self.profile_tabs_frame = ctk.CTkFrame(profile_section, fg_color="transparent")
-        self.profile_tabs_frame.pack(fill="x", padx=18, pady=(0, 10))
+        self.profile_tabs_frame.pack(fill="x", padx=18, pady=(0, 8))
 
         profile_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
-        profile_actions.pack(fill="x", padx=18, pady=(0, 10))
-
-        profile_actions_row_one = ctk.CTkFrame(profile_actions, fg_color="transparent")
-        profile_actions_row_one.pack(anchor="w", pady=(0, 8))
-
-        profile_actions_row_two = ctk.CTkFrame(profile_actions, fg_color="transparent")
-        profile_actions_row_two.pack(anchor="w")
+        profile_actions.pack(fill="x", padx=18, pady=(0, 8))
+        profile_actions.grid_columnconfigure((0, 1, 2), weight=1, uniform="profile_actions")
 
         self.add_profile_button = ctk.CTkButton(
             profile_actions,
@@ -1700,7 +1697,7 @@ class KeyHoldApp:
             font=self.ui_font(13, "bold", role="body"),
             command=self.add_macro_profile,
         )
-        self.add_profile_button.pack(in_=profile_actions_row_one, side="left")
+        self.add_profile_button.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 8))
 
         self.duplicate_profile_button = ctk.CTkButton(
             profile_actions,
@@ -1713,7 +1710,7 @@ class KeyHoldApp:
             font=self.ui_font(13, "bold", role="body"),
             command=self.duplicate_macro_profile,
         )
-        self.duplicate_profile_button.pack(in_=profile_actions_row_one, side="left", padx=(10, 0))
+        self.duplicate_profile_button.grid(row=0, column=1, sticky="ew", padx=6, pady=(0, 8))
 
         self.reset_profile_button = ctk.CTkButton(
             profile_actions,
@@ -1726,7 +1723,7 @@ class KeyHoldApp:
             font=self.ui_font(13, "bold", role="body"),
             command=self.reset_macro_profile,
         )
-        self.reset_profile_button.pack(in_=profile_actions_row_one, side="left", padx=(10, 0))
+        self.reset_profile_button.grid(row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 8))
 
         self.delete_profile_button = ctk.CTkButton(
             profile_actions,
@@ -1739,10 +1736,11 @@ class KeyHoldApp:
             font=self.ui_font(13, "bold", role="body"),
             command=self.delete_macro_profile,
         )
-        self.delete_profile_button.pack(in_=profile_actions_row_two, side="left")
+        self.delete_profile_button.grid(row=1, column=0, sticky="ew", padx=(0, 6), pady=(0, 0))
 
         profile_share_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
-        profile_share_actions.pack(fill="x", padx=18, pady=(0, 16))
+        profile_share_actions.pack(fill="x", padx=18, pady=(8, 16))
+        profile_share_actions.grid_columnconfigure((0, 1), weight=1, uniform="profile_share")
 
         self.import_profiles_button = ctk.CTkButton(
             profile_share_actions,
@@ -1755,7 +1753,7 @@ class KeyHoldApp:
             font=self.ui_font(13, "bold", role="body"),
             command=self.import_macro_profiles,
         )
-        self.import_profiles_button.pack(side="left")
+        self.import_profiles_button.grid(row=0, column=0, sticky="ew", padx=(0, 6))
 
         self.export_profiles_button = ctk.CTkButton(
             profile_share_actions,
@@ -1768,13 +1766,13 @@ class KeyHoldApp:
             font=self.ui_font(13, "bold", role="body"),
             command=self.export_macro_profiles,
         )
-        self.export_profiles_button.pack(side="left", padx=(10, 0))
+        self.export_profiles_button.grid(row=0, column=1, sticky="ew", padx=(6, 0))
 
         setup = self.build_section_frame(config_split)
         setup.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
         setup_grid = ctk.CTkFrame(setup, fg_color="transparent")
-        setup_grid.pack(fill="x", padx=10, pady=(10, 6))
+        setup_grid.pack(fill="x", padx=10, pady=(10, 4))
         setup_grid.grid_columnconfigure((0, 1), weight=1, uniform="macro_fields")
 
         self.profile_name_entry = self.add_dense_entry_card(
@@ -1823,7 +1821,7 @@ class KeyHoldApp:
         ctk.CTkFrame(setup_grid, fg_color="transparent").grid(row=2, column=1, sticky="ew", padx=8, pady=8)
 
         capture_actions = ctk.CTkFrame(setup, fg_color="transparent")
-        capture_actions.pack(fill="x", padx=18, pady=(0, 8))
+        capture_actions.pack(fill="x", padx=18, pady=(0, 6))
 
         self.capture_window_button = ctk.CTkButton(
             capture_actions,
@@ -1843,20 +1841,20 @@ class KeyHoldApp:
             text="Leave both match fields blank to let the profile run anywhere. Use Capture In 3s, then tab into the game before the countdown finishes.",
             font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
-            wraplength=420,
+            wraplength=520,
             justify="left",
         )
-        condition_hint.pack(anchor="w", padx=18, pady=(8, 12))
+        condition_hint.pack(anchor="w", padx=18, pady=(8, 10))
 
         macro_hint = ctk.CTkLabel(
             setup,
             text="Each step presses one virtual Xbox button, waits, releases it, then waits again before the next step. After the full sequence finishes, the macro waits for the loop interval before starting over.",
             font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
-            wraplength=420,
+            wraplength=520,
             justify="left",
         )
-        macro_hint.pack(anchor="w", padx=18, pady=(0, 12))
+        macro_hint.pack(anchor="w", padx=18, pady=(0, 10))
 
         progress_frame = self.build_section_frame(right)
         progress_frame.pack(fill="x", pady=(0, 10))
@@ -1890,7 +1888,7 @@ class KeyHoldApp:
             right,
             self.macro_status_var,
             self.macro_detail_var,
-            wraplength=220,
+            wraplength=300,
         )
         status_card.pack(fill="x", pady=(0, 10))
 
@@ -1912,7 +1910,7 @@ class KeyHoldApp:
             text_color=THEME["muted"],
             justify="left",
             anchor="w",
-            wraplength=220,
+            wraplength=300,
         ).pack(anchor="w", padx=18, pady=(0, 16))
 
         notes_section = self.build_section_frame(right)
@@ -1927,7 +1925,7 @@ class KeyHoldApp:
 
         self.profile_notes_text = ctk.CTkTextbox(
             notes_section,
-            height=92,
+            height=84,
             corner_radius=14,
             border_width=1,
             border_color=THEME["border"],
@@ -2028,7 +2026,7 @@ class KeyHoldApp:
                 text_color="#c6d2e5",
                 anchor="w",
                 justify="left",
-                wraplength=110,
+                wraplength=140,
             )
             metric.grid(
                 row=index // 2,
@@ -2258,12 +2256,12 @@ class KeyHoldApp:
         row.pack(fill="x", padx=18, pady=6)
 
         fields_row = ctk.CTkFrame(row, fg_color="transparent")
-        fields_row.pack(fill="x", padx=12, pady=(10, 6))
+        fields_row.pack(fill="x", padx=12, pady=(10, 4))
         fields_row.grid_columnconfigure(0, weight=0)
-        fields_row.grid_columnconfigure(1, weight=3)
-        fields_row.grid_columnconfigure(2, weight=2)
-        fields_row.grid_columnconfigure(3, weight=2)
-        fields_row.grid_columnconfigure(4, weight=2)
+        fields_row.grid_columnconfigure(1, weight=5, minsize=180)
+        fields_row.grid_columnconfigure(2, weight=2, minsize=120)
+        fields_row.grid_columnconfigure(3, weight=3, minsize=150)
+        fields_row.grid_columnconfigure(4, weight=3, minsize=210)
 
         number_label = ctk.CTkLabel(
             fields_row,
@@ -2321,7 +2319,6 @@ class KeyHoldApp:
         delay_entry.insert(0, str(step.get("delay_ms", 120)))
 
         actions_row = ctk.CTkFrame(row, fg_color="transparent")
-        actions_row.grid_columnconfigure((0, 1, 2), weight=1)
         actions_row.pack(fill="x", padx=12, pady=(0, 10))
 
         widget_set = {
