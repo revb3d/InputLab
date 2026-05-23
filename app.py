@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.21"
+APP_VERSION = "1.3.22"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -1349,16 +1349,16 @@ class KeyHoldApp:
     def finish_scroll_repaint(self) -> None:
         self.scroll_repaint_after_id = None
 
-    def build_dashboard_tab_shell(self, parent, title_text: str, subtitle_text: str) -> tuple[ctk.CTkFrame, ctk.CTkFrame]:
+    def build_dashboard_tab_shell(self, parent, title_text: str, subtitle_text: str) -> tuple[ctk.CTkFrame, ctk.CTkFrame, ctk.CTkFrame]:
         shell = ctk.CTkFrame(parent, fg_color="transparent")
         shell.pack(fill="both", expand=True, padx=24, pady=(20, 24))
-        shell.grid_columnconfigure(0, weight=7)
+        shell.grid_columnconfigure(0, weight=8)
         shell.grid_columnconfigure(1, weight=4)
 
         left = ctk.CTkFrame(shell, fg_color="transparent")
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 18))
 
-        right = ctk.CTkFrame(shell, fg_color="transparent", width=320)
+        right = ctk.CTkFrame(shell, fg_color="transparent", width=300)
         right.grid(row=0, column=1, sticky="new")
 
         ctk.CTkLabel(
@@ -1374,9 +1374,45 @@ class KeyHoldApp:
             text_color=THEME["muted"],
             wraplength=620,
             justify="left",
-        ).pack(anchor="w", pady=(8, 18))
+        ).pack(anchor="w", pady=(8, 14))
 
-        return left, right
+        return shell, left, right
+
+    def add_dense_entry_card(
+        self,
+        parent,
+        row: int,
+        column: int,
+        label_text: str,
+        hint_text: str,
+        value: str,
+        width: int | None = None,
+    ) -> ctk.CTkEntry:
+        card = ctk.CTkFrame(parent, fg_color="transparent")
+        card.grid(row=row, column=column, sticky="ew", padx=8, pady=8)
+        ctk.CTkLabel(
+            card,
+            text=label_text,
+            anchor="w",
+            font=self.ui_font(13, "bold", role="body"),
+            text_color=THEME["text"],
+        ).pack(anchor="w", pady=(0, 8))
+
+        entry_kwargs = {
+            "height": 42,
+            "corner_radius": 14,
+            "border_color": THEME["border"],
+            "fg_color": THEME["field"],
+            "text_color": THEME["text"],
+            "placeholder_text": hint_text,
+            "font": self.ui_font(14, role="body"),
+        }
+        if width is not None:
+            entry_kwargs["width"] = width
+        entry = ctk.CTkEntry(card, **entry_kwargs)
+        entry.pack(fill="x")
+        entry.insert(0, value)
+        return entry
 
     def build_info_card(self, parent, eyebrow: str, title: str, body: str, wraplength: int = 240) -> ctk.CTkFrame:
         card = self.build_website_card(parent)
@@ -1504,23 +1540,31 @@ class KeyHoldApp:
             self.view_animation_after_ids.append(after_id)
 
     def build_keyboard_tab(self, tab) -> None:
-        left, right = self.build_dashboard_tab_shell(
+        _, left, right = self.build_dashboard_tab_shell(
             tab,
             "Keyboard Hold",
             "Toggle any keyboard key from a global hotkey while InputLab stays open in the background.",
         )
 
         form = self.build_section_frame(left)
-        form.pack(fill="x", pady=(0, 16))
+        form.pack(fill="x", pady=(0, 14))
 
-        self.hotkey_entry = self.add_labeled_entry(
-            form,
+        form_grid = ctk.CTkFrame(form, fg_color="transparent")
+        form_grid.pack(fill="x", padx=10, pady=(10, 6))
+        form_grid.grid_columnconfigure((0, 1), weight=1, uniform="keyboard_fields")
+
+        self.hotkey_entry = self.add_dense_entry_card(
+            form_grid,
+            0,
+            0,
             "Toggle hotkey",
             "Example: f2, ctrl+shift+h",
             self.toggle_hotkey,
         )
-        self.key_entry = self.add_labeled_entry(
-            form,
+        self.key_entry = self.add_dense_entry_card(
+            form_grid,
+            0,
+            1,
             "Key to hold",
             "Example: m, space, left",
             self.target_key,
@@ -1545,7 +1589,7 @@ class KeyHoldApp:
         capture_target_button.pack(anchor="e")
 
         actions = ctk.CTkFrame(left, fg_color="transparent")
-        actions.pack(fill="x", pady=(0, 8))
+        actions.pack(fill="x", pady=(0, 6))
 
         apply_button = GradientButton(
             actions,
@@ -1587,7 +1631,7 @@ class KeyHoldApp:
             self.key_detail_var,
             wraplength=260,
         )
-        status_card.pack(fill="x", pady=(0, 16))
+        status_card.pack(fill="x", pady=(0, 14))
 
         binding_card = self.build_info_card(
             right,
@@ -1596,7 +1640,7 @@ class KeyHoldApp:
             "Use a compact hotkey such as F2 or Ctrl+Shift+H. The held key continues until you toggle it back off.",
             wraplength=250,
         )
-        binding_card.pack(fill="x", pady=(0, 16))
+        binding_card.pack(fill="x", pady=(0, 14))
 
         behavior_card = self.build_info_card(
             right,
@@ -1611,14 +1655,14 @@ class KeyHoldApp:
         self.update_key_status()
 
     def build_macro_tab(self, tab) -> None:
-        left, right = self.build_dashboard_tab_shell(
+        shell, left, right = self.build_dashboard_tab_shell(
             tab,
             "Controller Macro",
             "Build shareable Xbox-controller profiles with separate hotkeys, loops, and live step feedback.",
         )
 
         profile_section = self.build_section_frame(left)
-        profile_section.pack(fill="x", pady=(0, 16))
+        profile_section.pack(fill="x", pady=(0, 14))
         self.profile_section = profile_section
 
         ctk.CTkLabel(
@@ -1722,63 +1766,57 @@ class KeyHoldApp:
         self.export_profiles_button.pack(side="left", padx=(10, 0))
 
         setup = self.build_section_frame(left)
-        setup.pack(fill="x", pady=(0, 16))
+        setup.pack(fill="x", pady=(0, 14))
 
-        self.profile_name_entry = self.add_labeled_entry(
-            setup,
+        setup_grid = ctk.CTkFrame(setup, fg_color="transparent")
+        setup_grid.pack(fill="x", padx=10, pady=(10, 6))
+        setup_grid.grid_columnconfigure((0, 1), weight=1, uniform="macro_fields")
+
+        self.profile_name_entry = self.add_dense_entry_card(
+            setup_grid,
+            0,
+            0,
             "Profile name",
             "Example: Farm Route 1",
             self.get_selected_profile()["name"],
-            expand_entry=False,
-            entry_width=300,
         )
 
-        self.macro_hotkey_entry = self.add_labeled_entry(
-            setup,
+        self.macro_hotkey_entry = self.add_dense_entry_card(
+            setup_grid,
+            0,
+            1,
             "Macro hotkey",
             "Example: f3, ctrl+shift+m",
             self.macro_hotkey,
-            expand_entry=False,
-            entry_width=300,
         )
-        self.macro_interval_entry = self.add_labeled_entry(
-            setup,
+        self.macro_interval_entry = self.add_dense_entry_card(
+            setup_grid,
+            1,
+            0,
             "Loop interval",
             "Example: 75",
             str(self.macro_interval_seconds),
-            expand_entry=False,
-            entry_width=300,
         )
 
-        condition_card = ctk.CTkFrame(setup, fg_color=THEME["panel"])
-        condition_card.pack(fill="x", padx=18, pady=(0, 14))
-
-        ctk.CTkLabel(
-            condition_card,
-            text="Run only when focused app matches",
-            font=self.ui_font(14, "bold", role="body"),
-            text_color=THEME["text"],
-        ).pack(anchor="w", padx=18, pady=(12, 8))
-
-        self.macro_window_title_entry = self.add_labeled_entry(
-            condition_card,
-            "Window title",
+        self.macro_window_title_entry = self.add_dense_entry_card(
+            setup_grid,
+            1,
+            1,
+            "Window title match",
             "Optional: Forza",
             self.macro_run_condition["window_title"],
-            expand_entry=False,
-            entry_width=300,
         )
 
-        self.macro_process_name_entry = self.add_labeled_entry(
-            condition_card,
-            "Process name",
+        self.macro_process_name_entry = self.add_dense_entry_card(
+            setup_grid,
+            2,
+            0,
+            "Process name match",
             "Optional: forza.exe",
             self.macro_run_condition["process_name"],
-            expand_entry=False,
-            entry_width=300,
         )
 
-        capture_actions = ctk.CTkFrame(condition_card, fg_color=THEME["panel"])
+        capture_actions = ctk.CTkFrame(setup, fg_color="transparent")
         capture_actions.pack(fill="x", padx=18, pady=(0, 8))
 
         self.capture_window_button = ctk.CTkButton(
@@ -1795,8 +1833,8 @@ class KeyHoldApp:
         self.capture_window_button.pack(side="left")
 
         condition_hint = ctk.CTkLabel(
-            condition_card,
-            text="Leave both blank to let the profile run anywhere. Use Capture In 3s, then tab into the game before the countdown finishes.",
+            setup,
+            text="Leave both match fields blank to let the profile run anywhere. Use Capture In 3s, then tab into the game before the countdown finishes.",
             font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
             wraplength=560,
@@ -1815,7 +1853,7 @@ class KeyHoldApp:
         macro_hint.pack(anchor="w", padx=18, pady=(0, 12))
 
         progress_frame = self.build_section_frame(right)
-        progress_frame.pack(fill="x", pady=(0, 16))
+        progress_frame.pack(fill="x", pady=(0, 14))
 
         progress_header_row = ctk.CTkFrame(progress_frame, fg_color="transparent")
         progress_header_row.pack(fill="x", padx=18, pady=(16, 10))
@@ -1848,10 +1886,10 @@ class KeyHoldApp:
             self.macro_detail_var,
             wraplength=260,
         )
-        status_card.pack(fill="x", pady=(0, 16))
+        status_card.pack(fill="x", pady=(0, 14))
 
         stats_section = self.build_section_frame(right)
-        stats_section.pack(fill="x", pady=(0, 16))
+        stats_section.pack(fill="x", pady=(0, 14))
 
         ctk.CTkLabel(
             stats_section,
@@ -1872,7 +1910,7 @@ class KeyHoldApp:
         ).pack(anchor="w", padx=18, pady=(0, 16))
 
         notes_section = self.build_section_frame(right)
-        notes_section.pack(fill="x", pady=(0, 16))
+        notes_section.pack(fill="x", pady=(0, 14))
 
         ctk.CTkLabel(
             notes_section,
@@ -1894,52 +1932,22 @@ class KeyHoldApp:
         )
         self.profile_notes_text.pack(fill="x", padx=18, pady=(0, 16))
 
-        steps_frame = self.build_section_frame(left)
-        steps_frame.pack(fill="x", pady=(0, 16))
+        steps_frame = self.build_section_frame(shell)
+        steps_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 14))
 
         header = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
         header.pack(fill="x", padx=18, pady=(14, 8))
 
-        ctk.CTkLabel(
-            header,
-            text="Step",
-            width=56,
-            anchor="w",
-            font=self.ui_font(13, "bold", role="body"),
-            text_color=THEME["muted"],
-        ).pack(side="left")
-        ctk.CTkLabel(
-            header,
-            text="Button",
-            width=106,
-            anchor="w",
-            font=self.ui_font(13, "bold", role="body"),
-            text_color=THEME["muted"],
-        ).pack(side="left", padx=(0, 10))
-        ctk.CTkLabel(
-            header,
-            text="Hold (ms)",
-            width=86,
-            anchor="w",
-            font=self.ui_font(13, "bold", role="body"),
-            text_color=THEME["muted"],
-        ).pack(side="left", padx=(0, 10))
-        ctk.CTkLabel(
-            header,
-            text="Delay after (ms)",
-            width=112,
-            anchor="w",
-            font=self.ui_font(13, "bold", role="body"),
-            text_color=THEME["muted"],
-        ).pack(side="left", padx=(0, 10))
-        ctk.CTkLabel(
-            header,
-            text="Actions",
-            width=96,
-            anchor="w",
-            font=self.ui_font(13, "bold", role="body"),
-            text_color=THEME["muted"],
-        ).pack(side="left")
+        header.grid_columnconfigure(0, weight=0)
+        header.grid_columnconfigure(1, weight=2)
+        header.grid_columnconfigure(2, weight=1)
+        header.grid_columnconfigure(3, weight=1)
+        header.grid_columnconfigure(4, weight=1)
+        ctk.CTkLabel(header, text="Step", anchor="w", font=self.ui_font(13, "bold", role="body"), text_color=THEME["muted"]).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(header, text="Button", anchor="w", font=self.ui_font(13, "bold", role="body"), text_color=THEME["muted"]).grid(row=0, column=1, sticky="w", padx=(10, 0))
+        ctk.CTkLabel(header, text="Hold (ms)", anchor="w", font=self.ui_font(13, "bold", role="body"), text_color=THEME["muted"]).grid(row=0, column=2, sticky="w", padx=(10, 0))
+        ctk.CTkLabel(header, text="Delay after (ms)", anchor="w", font=self.ui_font(13, "bold", role="body"), text_color=THEME["muted"]).grid(row=0, column=3, sticky="w", padx=(10, 0))
+        ctk.CTkLabel(header, text="Actions", anchor="w", font=self.ui_font(13, "bold", role="body"), text_color=THEME["muted"]).grid(row=0, column=4, sticky="w", padx=(10, 0))
 
         self.macro_steps_rows_frame = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
         self.macro_steps_rows_frame.pack(fill="x")
@@ -1993,7 +2001,7 @@ class KeyHoldApp:
             text="Recorder keys: A, B, X, Y, Q=LB, E=RB, 1=BACK, 2=START, arrows=DPAD. Start recorder, play the sequence on the keyboard, then stop recorder to replace the steps.",
             font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
-            wraplength=560,
+            wraplength=900,
             justify="left",
         )
         recorder_hint.pack(anchor="w", padx=18, pady=(0, 16))
@@ -2014,7 +2022,7 @@ class KeyHoldApp:
                 text_color="#c6d2e5",
                 anchor="w",
                 justify="left",
-                wraplength=360,
+                wraplength=140,
             )
             metric.grid(
                 row=index // 2,
@@ -2024,8 +2032,8 @@ class KeyHoldApp:
                 pady=5,
             )
 
-        actions = ctk.CTkFrame(left, fg_color="transparent")
-        actions.pack(fill="x", pady=(0, 8))
+        actions = ctk.CTkFrame(shell, fg_color="transparent")
+        actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 8))
 
         apply_button = GradientButton(
             actions,
@@ -2065,7 +2073,7 @@ class KeyHoldApp:
         stop_button.pack(side="left", padx=(12, 0))
 
         driver_note = ctk.CTkLabel(
-            left,
+            shell,
             text=(
                 "This tab uses a virtual Xbox 360 controller. "
                 "If it does not start, install the ViGEmBus driver when prompted by vgamepad."
@@ -2075,7 +2083,7 @@ class KeyHoldApp:
             wraplength=560,
             justify="left",
         )
-        driver_note.pack(anchor="w", pady=(6, 0))
+        driver_note.grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
         self.macro_status_badge = status_card.badge
         self.profile_editor_ready = True
@@ -2084,7 +2092,7 @@ class KeyHoldApp:
         self.update_macro_status()
 
     def build_settings_tab(self, tab) -> None:
-        left, right = self.build_dashboard_tab_shell(
+        _, left, right = self.build_dashboard_tab_shell(
             tab,
             "Settings",
             "Switch the full InputLab colorway, tray behavior, and overlay tools without touching your macro profiles.",
@@ -2111,9 +2119,10 @@ class KeyHoldApp:
 
         self.theme_buttons_frame = ctk.CTkFrame(theme_section, fg_color=THEME["panel"])
         self.theme_buttons_frame.pack(fill="x", padx=18, pady=(0, 16))
+        self.theme_buttons_frame.grid_columnconfigure((0, 1), weight=1, uniform="theme_buttons")
 
         self.theme_preset_buttons = {}
-        for theme_name in THEME_PRESETS:
+        for index, theme_name in enumerate(THEME_PRESETS):
             button = ctk.CTkButton(
                 self.theme_buttons_frame,
                 text=theme_name,
@@ -2125,7 +2134,7 @@ class KeyHoldApp:
                 font=self.ui_font(13, "bold", role="body"),
                 command=lambda value=theme_name: self.change_theme(value),
             )
-            button.pack(fill="x", pady=5)
+            button.grid(row=index // 2, column=index % 2, sticky="ew", padx=6, pady=4)
             self.theme_preset_buttons[theme_name] = button
 
         behavior_section = self.build_section_frame(left)
@@ -2244,6 +2253,11 @@ class KeyHoldApp:
 
         fields_row = ctk.CTkFrame(row, fg_color="transparent")
         fields_row.pack(fill="x", padx=12, pady=(10, 6))
+        fields_row.grid_columnconfigure(0, weight=0)
+        fields_row.grid_columnconfigure(1, weight=3)
+        fields_row.grid_columnconfigure(2, weight=2)
+        fields_row.grid_columnconfigure(3, weight=2)
+        fields_row.grid_columnconfigure(4, weight=2)
 
         number_label = ctk.CTkLabel(
             fields_row,
@@ -2255,12 +2269,12 @@ class KeyHoldApp:
             font=self.ui_font(13, "bold", role="body"),
             text_color=THEME["text"],
         )
-        number_label.pack(side="left", padx=(0, 12))
+        number_label.grid(row=0, column=0, sticky="w", padx=(0, 12))
 
         button_box = ctk.CTkComboBox(
             fields_row,
             values=[""] + BUTTON_OPTIONS,
-            width=104,
+            width=150,
             height=38,
             corner_radius=12,
             border_color=THEME["border"],
@@ -2271,12 +2285,12 @@ class KeyHoldApp:
             dropdown_hover_color="#1d293b",
             dropdown_text_color=THEME["text"],
         )
-        button_box.pack(side="left", padx=(0, 10))
+        button_box.grid(row=0, column=1, sticky="ew", padx=(0, 10))
         button_box.set(str(step.get("button", "")).upper())
 
         hold_entry = ctk.CTkEntry(
             fields_row,
-            width=86,
+            width=110,
             height=38,
             corner_radius=12,
             border_color=THEME["border"],
@@ -2284,12 +2298,12 @@ class KeyHoldApp:
             text_color=THEME["text"],
             font=self.ui_font(13, role="body"),
         )
-        hold_entry.pack(side="left", padx=(0, 10))
+        hold_entry.grid(row=0, column=2, sticky="ew", padx=(0, 10))
         hold_entry.insert(0, str(step.get("hold_ms", 90)))
 
         delay_entry = ctk.CTkEntry(
             fields_row,
-            width=112,
+            width=150,
             height=38,
             corner_radius=12,
             border_color=THEME["border"],
@@ -2297,11 +2311,12 @@ class KeyHoldApp:
             text_color=THEME["text"],
             font=self.ui_font(13, role="body"),
         )
-        delay_entry.pack(side="left", padx=(0, 10))
+        delay_entry.grid(row=0, column=3, sticky="ew", padx=(0, 10))
         delay_entry.insert(0, str(step.get("delay_ms", 120)))
 
         actions_row = ctk.CTkFrame(row, fg_color="transparent")
-        actions_row.pack(anchor="e", padx=12, pady=(0, 10))
+        actions_row.grid_columnconfigure((0, 1, 2), weight=1)
+        actions_row.pack(fill="x", padx=12, pady=(0, 10))
 
         widget_set = {
             "row": row,
@@ -2323,7 +2338,7 @@ class KeyHoldApp:
             font=self.ui_font(12, "bold", role="body"),
             command=lambda target=widget_set: self.move_macro_step(target, -1),
         )
-        move_up_button.pack(side="left", padx=(0, 8))
+        move_up_button.pack(side="right", padx=(8, 0))
         widget_set["up"] = move_up_button
 
         move_down_button = ctk.CTkButton(
@@ -2338,7 +2353,7 @@ class KeyHoldApp:
             font=self.ui_font(12, "bold", role="body"),
             command=lambda target=widget_set: self.move_macro_step(target, 1),
         )
-        move_down_button.pack(side="left", padx=(0, 8))
+        move_down_button.pack(side="right", padx=(8, 0))
         widget_set["down"] = move_down_button
 
         remove_button = ctk.CTkButton(
@@ -2353,7 +2368,7 @@ class KeyHoldApp:
             font=self.ui_font(12, "bold", role="body"),
             command=lambda target=widget_set: self.remove_macro_step(target),
         )
-        remove_button.pack(side="left")
+        remove_button.pack(side="right")
         widget_set["remove"] = remove_button
 
         self.macro_step_widgets.append(widget_set)
