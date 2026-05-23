@@ -1,5 +1,5 @@
 {
-  "version": "1.3.20",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.20/InputLabSetup.exe",
-  "notes": "Optimized desktop rendering by simplifying background generation, disabling ambient background animation in performance mode, caching gradient strips and background images, reducing resize-triggered rerenders, removing scroll repaint work, skipping button shadow/tween redraws in performance mode, and slowing noncritical live progress UI updates."
+  "version": "1.3.21",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.21/InputLabSetup.exe",
+  "notes": "Rebuilt the desktop shell into a centered website-inspired dashboard: compact top header, no sidebar, horizontal module pills, one rounded workspace card, and a cleaner two-column app layout tuned to fit normal desktop sizes without clipping."
 }
