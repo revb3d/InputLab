@@ -1,5 +1,5 @@
 {
-  "version": "1.3.15",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.15/InputLabSetup.exe",
-  "notes": "Restored the last stable gradient button renderer while keeping the safer sidebar width and background fixes so selected tabs no longer draw incorrectly."
+  "version": "1.3.18",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.18/InputLabSetup.exe",
+  "notes": "Resized the sidebar module pills from the real host width instead of a fixed canvas width, and widened the sidebar slightly so selected labels no longer overflow or clip."
 }

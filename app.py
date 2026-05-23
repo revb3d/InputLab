@@ -36,7 +36,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.15"
+APP_VERSION = "1.3.18"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -315,6 +315,22 @@ class GradientButton(tk.Canvas):
                 self.animation_after_id = None
 
         step(1)
+
+    def set_size(self, width: int | None = None, height: int | None = None) -> None:
+        updated = False
+        if width is not None and width != self.button_width:
+            self.button_width = max(int(width), 1)
+            updated = True
+        if height is not None and height != self.button_height:
+            self.button_height = max(int(height), 1)
+            updated = True
+        if not updated:
+            return
+        self.configure(width=self.button_width, height=self.button_height)
+        self.radius = min(self.corner_radius, self.button_height // 2, self.button_width // 2)
+        self.vertical_spans = self.build_vertical_spans()
+        self.gradient_cache = {}
+        self.draw(self.current_colors)
 
     def draw(self, colors: tuple[str, ...], pressed: bool = False) -> None:
         self.current_colors = colors
@@ -1070,7 +1086,7 @@ class KeyHoldApp:
 
         sidebar = ctk.CTkFrame(
             body,
-            width=208,
+            width=220,
             fg_color=THEME["panel_low"],
             corner_radius=20,
             border_color=THEME["border_soft"],
@@ -1109,13 +1125,14 @@ class KeyHoldApp:
 
         self.keyboard_nav_host = ctk.CTkFrame(self.keyboard_nav_row, fg_color="transparent")
         self.keyboard_nav_host.pack(side="left", fill="x", expand=True)
+        self.keyboard_nav_host.bind("<Configure>", self.on_nav_host_configure)
         self.keyboard_nav_active_button = GradientButton(
             self.keyboard_nav_host,
             text="Keyboard Hold",
             command=lambda: self.show_view("keyboard"),
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=198,
+            width=156,
             height=48,
             corner_radius=22,
         )
@@ -1147,13 +1164,14 @@ class KeyHoldApp:
 
         self.macro_nav_host = ctk.CTkFrame(self.macro_nav_row, fg_color="transparent")
         self.macro_nav_host.pack(side="left", fill="x", expand=True)
+        self.macro_nav_host.bind("<Configure>", self.on_nav_host_configure)
         self.macro_nav_active_button = GradientButton(
             self.macro_nav_host,
             text="Controller Macro",
             command=lambda: self.show_view("macro"),
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=198,
+            width=156,
             height=48,
             corner_radius=22,
         )
@@ -1281,7 +1299,7 @@ class KeyHoldApp:
             fg_color=THEME["panel_low"],
             corner_radius=0,
         )
-        self.content_shell.place(relx=0.5, rely=0, anchor="n", relheight=1)
+        self.content_shell.pack(fill="x", anchor="n")
 
         self.workspace_accent = ctk.CTkFrame(
             self.content_shell,
@@ -1378,7 +1396,8 @@ class KeyHoldApp:
         shell_width = min(available_width, 1460)
         if shell_width != self.content_shell_width:
             self.content_shell_width = shell_width
-            self.content_shell.place_configure(width=shell_width)
+        side_padding = max((event.width - shell_width) // 2, 0)
+        self.content_shell.pack_configure(padx=side_padding)
 
     def on_body_mousewheel(self, event) -> None:
         if not self.pointer_is_over_widget(self.body_canvas):
@@ -2553,6 +2572,23 @@ class KeyHoldApp:
             border_width=1,
         )
         return frame
+
+    def on_nav_host_configure(self, _event=None) -> None:
+        self.sync_nav_button_widths()
+
+    def sync_nav_button_widths(self) -> None:
+        mappings = [
+            (getattr(self, "keyboard_nav_host", None), getattr(self, "keyboard_nav_active_button", None)),
+            (getattr(self, "macro_nav_host", None), getattr(self, "macro_nav_active_button", None)),
+        ]
+        for host, button in mappings:
+            if host is None or button is None:
+                continue
+            width = host.winfo_width()
+            if width <= 1:
+                continue
+            target_width = max(width - 2, 120)
+            button.set_size(width=target_width, height=48)
 
     def add_labeled_entry(
         self,
