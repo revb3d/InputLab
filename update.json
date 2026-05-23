@@ -1,5 +1,5 @@
 {
-  "version": "1.3.24",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.24/InputLabSetup.exe",
-  "notes": "Adjusted desktop layout proportions for larger monitors: wider content shell, a fixed minimum runtime sidebar, tighter profile actions, reduced stacking, and cleaner card sizing to prevent clipped text and cropped controls."
+  "version": "1.3.25",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.25/InputLabSetup.exe",
+  "notes": "Removed overly tight layout constraints: wider main container, less centering waste, wider module tabs, wrapping profile action buttons, a stronger fixed-width runtime column, and fewer fixed card sizes causing clipped text or cropped controls."
 }

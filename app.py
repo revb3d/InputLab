@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.24"
+APP_VERSION = "1.3.25"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -1000,9 +1000,8 @@ class KeyHoldApp:
         top_nav = ctk.CTkFrame(outer, fg_color="transparent")
         top_nav.pack(fill="x", pady=(0, 14))
 
-        self.top_nav_inner = ctk.CTkFrame(top_nav, fg_color="transparent", width=1360, height=42)
-        self.top_nav_inner.pack(anchor="n")
-        self.top_nav_inner.pack_propagate(False)
+        self.top_nav_inner = ctk.CTkFrame(top_nav, fg_color="transparent", height=42)
+        self.top_nav_inner.pack(fill="x")
         self.top_nav_inner.grid_columnconfigure(0, weight=1)
         self.top_nav_inner.grid_columnconfigure(1, weight=0)
 
@@ -1039,7 +1038,7 @@ class KeyHoldApp:
             nav_right,
             text="Check updates",
             height=36,
-            width=132,
+            width=146,
             corner_radius=18,
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
@@ -1114,7 +1113,7 @@ class KeyHoldApp:
             text="Functional dashboard for keyboard holds, controller macros, profiles, and updater controls.",
             font=self.ui_font(16, "bold", role="display"),
             text_color=THEME["text"],
-            wraplength=640,
+            wraplength=760,
             justify="left",
         ).pack(anchor="w")
         ctk.CTkLabel(
@@ -1122,13 +1121,13 @@ class KeyHoldApp:
             text="Built to stay compact and readable at normal desktop sizes without cutting off controls or status.",
             font=self.ui_font(13, role="body"),
             text_color=THEME["muted"],
-            wraplength=640,
+            wraplength=760,
             justify="left",
         ).pack(anchor="w", pady=(8, 0))
 
         intro_right = ctk.CTkFrame(intro, fg_color="transparent")
         intro_right.grid(row=0, column=1, sticky="e", padx=(20, 0))
-        self.intro_status_card = self.build_website_card(intro_right, width=262, height=112)
+        self.intro_status_card = self.build_website_card(intro_right, width=320)
         self.intro_status_card.pack()
         ctk.CTkLabel(
             self.intro_status_card,
@@ -1152,9 +1151,9 @@ class KeyHoldApp:
             text_color=THEME["muted"],
             anchor="w",
             justify="left",
-            wraplength=220,
+            wraplength=280,
         )
-        self.intro_status_detail.pack(anchor="w", padx=18, pady=(6, 0))
+        self.intro_status_detail.pack(anchor="w", padx=18, pady=(6, 16))
 
         tabs_row = ctk.CTkFrame(self.content_area, fg_color="transparent")
         tabs_row.pack(fill="x", padx=20, pady=(0, 12))
@@ -1164,7 +1163,7 @@ class KeyHoldApp:
 
         self.keyboard_nav_row = ctk.CTkFrame(tabs_inner, fg_color="transparent")
         self.keyboard_nav_row.pack(side="left", padx=(0, 10))
-        self.keyboard_nav_host = ctk.CTkFrame(self.keyboard_nav_row, fg_color="transparent", width=176, height=46)
+        self.keyboard_nav_host = ctk.CTkFrame(self.keyboard_nav_row, fg_color="transparent", width=198, height=46)
         self.keyboard_nav_host.pack(side="left")
         self.keyboard_nav_host.pack_propagate(False)
         self.keyboard_nav_active_button = GradientButton(
@@ -1173,7 +1172,7 @@ class KeyHoldApp:
             command=lambda: self.show_view("keyboard"),
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=176,
+            width=198,
             height=46,
             corner_radius=23,
         )
@@ -1181,7 +1180,7 @@ class KeyHoldApp:
             self.keyboard_nav_host,
             text="Keyboard Hold",
             height=46,
-            width=176,
+            width=198,
             corner_radius=23,
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
@@ -1192,7 +1191,7 @@ class KeyHoldApp:
 
         self.macro_nav_row = ctk.CTkFrame(tabs_inner, fg_color="transparent")
         self.macro_nav_row.pack(side="left", padx=(0, 10))
-        self.macro_nav_host = ctk.CTkFrame(self.macro_nav_row, fg_color="transparent", width=188, height=46)
+        self.macro_nav_host = ctk.CTkFrame(self.macro_nav_row, fg_color="transparent", width=224, height=46)
         self.macro_nav_host.pack(side="left")
         self.macro_nav_host.pack_propagate(False)
         self.macro_nav_active_button = GradientButton(
@@ -1201,7 +1200,7 @@ class KeyHoldApp:
             command=lambda: self.show_view("macro"),
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=188,
+            width=224,
             height=46,
             corner_radius=23,
         )
@@ -1209,7 +1208,7 @@ class KeyHoldApp:
             self.macro_nav_host,
             text="Controller Macro",
             height=46,
-            width=188,
+            width=224,
             corner_radius=23,
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
@@ -1220,21 +1219,24 @@ class KeyHoldApp:
 
         self.settings_nav_row = ctk.CTkFrame(tabs_inner, fg_color="transparent")
         self.settings_nav_row.pack(side="left")
+        self.settings_nav_host = ctk.CTkFrame(self.settings_nav_row, fg_color="transparent", width=160, height=46)
+        self.settings_nav_host.pack(side="left")
+        self.settings_nav_host.pack_propagate(False)
         self.settings_nav_active_button = GradientButton(
-            self.settings_nav_row,
+            self.settings_nav_host,
             text="Settings",
             command=lambda: self.show_view("settings"),
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=144,
+            width=160,
             height=46,
             corner_radius=23,
         )
         self.settings_nav_button = ctk.CTkButton(
-            self.settings_nav_row,
+            self.settings_nav_host,
             text="Settings",
             height=46,
-            width=144,
+            width=160,
             corner_radius=23,
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
@@ -1250,7 +1252,7 @@ class KeyHoldApp:
             border_color=THEME["border_soft"],
             border_width=1,
         )
-        self.content_shell.pack(fill="both", expand=True, padx=20, pady=(0, 24))
+        self.content_shell.pack(fill="both", expand=True, padx=16, pady=(0, 24))
 
         self.workspace_accent = tk.Canvas(
             self.content_shell,
@@ -1322,7 +1324,7 @@ class KeyHoldApp:
             self.body_canvas_last_width = event.width
             self.body_canvas.itemconfigure(self.body_canvas_window, width=event.width)
             if hasattr(self, "page_shell"):
-                shell_width = min(max(event.width - 36, 1080), 1360)
+                shell_width = min(max(int(event.width * 0.85), 1120), 1680)
                 side_padding = max((event.width - shell_width) // 2, 0)
                 self.page_shell.pack_configure(padx=side_padding)
                 self.page_shell.configure(width=shell_width)
@@ -1351,14 +1353,14 @@ class KeyHoldApp:
 
     def build_dashboard_tab_shell(self, parent, title_text: str, subtitle_text: str) -> tuple[ctk.CTkFrame, ctk.CTkFrame, ctk.CTkFrame]:
         shell = ctk.CTkFrame(parent, fg_color="transparent")
-        shell.pack(fill="both", expand=True, padx=14, pady=(16, 20))
-        shell.grid_columnconfigure(0, weight=14, minsize=760)
-        shell.grid_columnconfigure(1, weight=6, minsize=384)
+        shell.pack(fill="both", expand=True, padx=12, pady=(16, 20))
+        shell.grid_columnconfigure(0, weight=15, minsize=780)
+        shell.grid_columnconfigure(1, weight=7, minsize=400)
 
         left = ctk.CTkFrame(shell, fg_color="transparent")
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
 
-        right = ctk.CTkFrame(shell, fg_color="transparent", width=384)
+        right = ctk.CTkFrame(shell, fg_color="transparent", width=400)
         right.grid(row=0, column=1, sticky="new")
         right.grid_propagate(False)
 
@@ -1373,7 +1375,7 @@ class KeyHoldApp:
             text=subtitle_text,
             font=self.ui_font(13, role="body"),
             text_color=THEME["muted"],
-            wraplength=920,
+            wraplength=980,
             justify="left",
         ).pack(anchor="w", pady=(8, 14))
 
@@ -1664,8 +1666,8 @@ class KeyHoldApp:
 
         config_split = ctk.CTkFrame(left, fg_color="transparent")
         config_split.pack(fill="x", pady=(0, 10))
-        config_split.grid_columnconfigure(0, weight=7, minsize=440)
-        config_split.grid_columnconfigure(1, weight=5, minsize=380)
+        config_split.grid_columnconfigure(0, weight=8, minsize=460)
+        config_split.grid_columnconfigure(1, weight=6, minsize=400)
         self.config_split = config_split
 
         profile_section = self.build_section_frame(config_split)
@@ -1684,7 +1686,7 @@ class KeyHoldApp:
 
         profile_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
         profile_actions.pack(fill="x", padx=18, pady=(0, 8))
-        profile_actions.grid_columnconfigure((0, 1, 2), weight=1, uniform="profile_actions")
+        profile_actions.grid_columnconfigure((0, 1), weight=1, uniform="profile_actions")
 
         self.add_profile_button = ctk.CTkButton(
             profile_actions,
@@ -1710,7 +1712,7 @@ class KeyHoldApp:
             font=self.ui_font(13, "bold", role="body"),
             command=self.duplicate_macro_profile,
         )
-        self.duplicate_profile_button.grid(row=0, column=1, sticky="ew", padx=6, pady=(0, 8))
+        self.duplicate_profile_button.grid(row=0, column=1, sticky="ew", padx=(6, 0), pady=(0, 8))
 
         self.reset_profile_button = ctk.CTkButton(
             profile_actions,
@@ -1723,7 +1725,7 @@ class KeyHoldApp:
             font=self.ui_font(13, "bold", role="body"),
             command=self.reset_macro_profile,
         )
-        self.reset_profile_button.grid(row=0, column=2, sticky="ew", padx=(6, 0), pady=(0, 8))
+        self.reset_profile_button.grid(row=1, column=0, sticky="ew", padx=(0, 6), pady=(0, 0))
 
         self.delete_profile_button = ctk.CTkButton(
             profile_actions,
@@ -1736,7 +1738,7 @@ class KeyHoldApp:
             font=self.ui_font(13, "bold", role="body"),
             command=self.delete_macro_profile,
         )
-        self.delete_profile_button.grid(row=1, column=0, sticky="ew", padx=(0, 6), pady=(0, 0))
+        self.delete_profile_button.grid(row=1, column=1, sticky="ew", padx=(6, 0), pady=(0, 0))
 
         profile_share_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
         profile_share_actions.pack(fill="x", padx=18, pady=(8, 16))
@@ -1841,7 +1843,7 @@ class KeyHoldApp:
             text="Leave both match fields blank to let the profile run anywhere. Use Capture In 3s, then tab into the game before the countdown finishes.",
             font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
-            wraplength=520,
+            wraplength=560,
             justify="left",
         )
         condition_hint.pack(anchor="w", padx=18, pady=(8, 10))
@@ -1851,7 +1853,7 @@ class KeyHoldApp:
             text="Each step presses one virtual Xbox button, waits, releases it, then waits again before the next step. After the full sequence finishes, the macro waits for the loop interval before starting over.",
             font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
-            wraplength=520,
+            wraplength=560,
             justify="left",
         )
         macro_hint.pack(anchor="w", padx=18, pady=(0, 10))
@@ -1888,7 +1890,7 @@ class KeyHoldApp:
             right,
             self.macro_status_var,
             self.macro_detail_var,
-            wraplength=300,
+            wraplength=330,
         )
         status_card.pack(fill="x", pady=(0, 10))
 
@@ -1910,7 +1912,7 @@ class KeyHoldApp:
             text_color=THEME["muted"],
             justify="left",
             anchor="w",
-            wraplength=300,
+            wraplength=330,
         ).pack(anchor="w", padx=18, pady=(0, 16))
 
         notes_section = self.build_section_frame(right)
@@ -2026,7 +2028,7 @@ class KeyHoldApp:
                 text_color="#c6d2e5",
                 anchor="w",
                 justify="left",
-                wraplength=140,
+                wraplength=170,
             )
             metric.grid(
                 row=index // 2,
@@ -2626,6 +2628,7 @@ class KeyHoldApp:
         mappings = [
             (getattr(self, "keyboard_nav_host", None), getattr(self, "keyboard_nav_active_button", None)),
             (getattr(self, "macro_nav_host", None), getattr(self, "macro_nav_active_button", None)),
+            (getattr(self, "settings_nav_host", None), getattr(self, "settings_nav_active_button", None)),
         ]
         for host, button in mappings:
             if host is None or button is None:
