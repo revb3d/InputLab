@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.22"
+APP_VERSION = "1.3.23"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -1351,14 +1351,14 @@ class KeyHoldApp:
 
     def build_dashboard_tab_shell(self, parent, title_text: str, subtitle_text: str) -> tuple[ctk.CTkFrame, ctk.CTkFrame, ctk.CTkFrame]:
         shell = ctk.CTkFrame(parent, fg_color="transparent")
-        shell.pack(fill="both", expand=True, padx=24, pady=(20, 24))
-        shell.grid_columnconfigure(0, weight=8)
-        shell.grid_columnconfigure(1, weight=4)
+        shell.pack(fill="both", expand=True, padx=20, pady=(18, 22))
+        shell.grid_columnconfigure(0, weight=9)
+        shell.grid_columnconfigure(1, weight=3)
 
         left = ctk.CTkFrame(shell, fg_color="transparent")
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 18))
 
-        right = ctk.CTkFrame(shell, fg_color="transparent", width=300)
+        right = ctk.CTkFrame(shell, fg_color="transparent", width=280)
         right.grid(row=0, column=1, sticky="new")
 
         ctk.CTkLabel(
@@ -1372,7 +1372,7 @@ class KeyHoldApp:
             text=subtitle_text,
             font=self.ui_font(13, role="body"),
             text_color=THEME["muted"],
-            wraplength=620,
+            wraplength=700,
             justify="left",
         ).pack(anchor="w", pady=(8, 14))
 
@@ -1661,8 +1661,13 @@ class KeyHoldApp:
             "Build shareable Xbox-controller profiles with separate hotkeys, loops, and live step feedback.",
         )
 
-        profile_section = self.build_section_frame(left)
-        profile_section.pack(fill="x", pady=(0, 14))
+        config_split = ctk.CTkFrame(left, fg_color="transparent")
+        config_split.pack(fill="x", pady=(0, 12))
+        config_split.grid_columnconfigure(0, weight=5)
+        config_split.grid_columnconfigure(1, weight=4)
+
+        profile_section = self.build_section_frame(config_split)
+        profile_section.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         self.profile_section = profile_section
 
         ctk.CTkLabel(
@@ -1765,8 +1770,8 @@ class KeyHoldApp:
         )
         self.export_profiles_button.pack(side="left", padx=(10, 0))
 
-        setup = self.build_section_frame(left)
-        setup.pack(fill="x", pady=(0, 14))
+        setup = self.build_section_frame(config_split)
+        setup.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
         setup_grid = ctk.CTkFrame(setup, fg_color="transparent")
         setup_grid.pack(fill="x", padx=10, pady=(10, 6))
@@ -1815,6 +1820,7 @@ class KeyHoldApp:
             "Optional: forza.exe",
             self.macro_run_condition["process_name"],
         )
+        ctk.CTkFrame(setup_grid, fg_color="transparent").grid(row=2, column=1, sticky="ew", padx=8, pady=8)
 
         capture_actions = ctk.CTkFrame(setup, fg_color="transparent")
         capture_actions.pack(fill="x", padx=18, pady=(0, 8))
@@ -1837,7 +1843,7 @@ class KeyHoldApp:
             text="Leave both match fields blank to let the profile run anywhere. Use Capture In 3s, then tab into the game before the countdown finishes.",
             font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
-            wraplength=560,
+            wraplength=420,
             justify="left",
         )
         condition_hint.pack(anchor="w", padx=18, pady=(8, 12))
@@ -1847,13 +1853,13 @@ class KeyHoldApp:
             text="Each step presses one virtual Xbox button, waits, releases it, then waits again before the next step. After the full sequence finishes, the macro waits for the loop interval before starting over.",
             font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
-            wraplength=560,
+            wraplength=420,
             justify="left",
         )
         macro_hint.pack(anchor="w", padx=18, pady=(0, 12))
 
         progress_frame = self.build_section_frame(right)
-        progress_frame.pack(fill="x", pady=(0, 14))
+        progress_frame.pack(fill="x", pady=(0, 10))
 
         progress_header_row = ctk.CTkFrame(progress_frame, fg_color="transparent")
         progress_header_row.pack(fill="x", padx=18, pady=(16, 10))
@@ -1884,12 +1890,12 @@ class KeyHoldApp:
             right,
             self.macro_status_var,
             self.macro_detail_var,
-            wraplength=260,
+            wraplength=220,
         )
-        status_card.pack(fill="x", pady=(0, 14))
+        status_card.pack(fill="x", pady=(0, 10))
 
         stats_section = self.build_section_frame(right)
-        stats_section.pack(fill="x", pady=(0, 14))
+        stats_section.pack(fill="x", pady=(0, 10))
 
         ctk.CTkLabel(
             stats_section,
@@ -1906,11 +1912,11 @@ class KeyHoldApp:
             text_color=THEME["muted"],
             justify="left",
             anchor="w",
-            wraplength=260,
+            wraplength=220,
         ).pack(anchor="w", padx=18, pady=(0, 16))
 
         notes_section = self.build_section_frame(right)
-        notes_section.pack(fill="x", pady=(0, 14))
+        notes_section.pack(fill="x", pady=(0, 10))
 
         ctk.CTkLabel(
             notes_section,
@@ -1921,7 +1927,7 @@ class KeyHoldApp:
 
         self.profile_notes_text = ctk.CTkTextbox(
             notes_section,
-            height=116,
+            height=92,
             corner_radius=14,
             border_width=1,
             border_color=THEME["border"],
@@ -1933,7 +1939,7 @@ class KeyHoldApp:
         self.profile_notes_text.pack(fill="x", padx=18, pady=(0, 16))
 
         steps_frame = self.build_section_frame(shell)
-        steps_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 14))
+        steps_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 12))
 
         header = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
         header.pack(fill="x", padx=18, pady=(14, 8))
@@ -2001,7 +2007,7 @@ class KeyHoldApp:
             text="Recorder keys: A, B, X, Y, Q=LB, E=RB, 1=BACK, 2=START, arrows=DPAD. Start recorder, play the sequence on the keyboard, then stop recorder to replace the steps.",
             font=self.ui_font(12, role="body"),
             text_color=THEME["muted"],
-            wraplength=900,
+            wraplength=1040,
             justify="left",
         )
         recorder_hint.pack(anchor="w", padx=18, pady=(0, 16))
@@ -2018,11 +2024,11 @@ class KeyHoldApp:
                 height=40,
                 corner_radius=12,
                 fg_color=THEME["field"],
-                font=self.ui_font(13, role="body"),
+                font=self.ui_font(12, role="body"),
                 text_color="#c6d2e5",
                 anchor="w",
                 justify="left",
-                wraplength=140,
+                wraplength=110,
             )
             metric.grid(
                 row=index // 2,
@@ -2080,7 +2086,7 @@ class KeyHoldApp:
             ),
             font=self.ui_font(12, role="body"),
             text_color=THEME["faint"],
-            wraplength=560,
+            wraplength=980,
             justify="left",
         )
         driver_note.grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))

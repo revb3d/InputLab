@@ -1,5 +1,5 @@
 {
-  "version": "1.3.22",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.22/InputLabSetup.exe",
-  "notes": "Improved desktop layout density without changing the visual style: wider macro editor, denser two-column forms, reduced vertical stacking, and better use of horizontal space inside the centered dashboard card."
+  "version": "1.3.23",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.23/InputLabSetup.exe",
+  "notes": "Further improved desktop ergonomics inside the existing dashboard shell: true split-panel controller macro layout, wider use of horizontal space, denser configuration blocks, and a broader full-width step editor better suited to desktop monitors."
 }
