@@ -11,6 +11,7 @@ import tkinter as tk
 import urllib.error
 import urllib.request
 import uuid
+import webbrowser
 from ctypes import wintypes
 from datetime import datetime
 from pathlib import Path
@@ -36,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.18"
+APP_VERSION = "1.3.19"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -978,81 +979,69 @@ class KeyHoldApp:
         self.render_app_background()
         self.root.configure(fg_color=THEME["app_bg"])
         self.root.unbind_all("<MouseWheel>")
-
-        outer = ctk.CTkFrame(
-            self.root,
-            fg_color=THEME["shell"],
-            corner_radius=24,
-            border_color=THEME["shell"],
-            border_width=0,
-        )
-        outer.pack(fill="both", expand=True, padx=18, pady=18)
+        outer = ctk.CTkFrame(self.root, fg_color="transparent", corner_radius=0)
+        outer.pack(fill="both", expand=True, padx=28, pady=24)
         self.ui_root = outer
 
-        header = ctk.CTkFrame(
-            outer,
-            fg_color=THEME["shell_high"],
-            corner_radius=20,
-            border_color=THEME["border_soft"],
-            border_width=1,
-        )
-        header.pack(fill="x", padx=22, pady=(22, 14))
+        top_nav = ctk.CTkFrame(outer, fg_color="transparent")
+        top_nav.pack(fill="x", padx=4, pady=(0, 18))
 
-        self.add_accent_line(header, THEME["blue"], height=3, padx=18, pady=(16, 0))
-
-        header_top = ctk.CTkFrame(header, fg_color="transparent")
-        header_top.pack(fill="x", padx=18, pady=(12, 16))
+        nav_left = ctk.CTkFrame(top_nav, fg_color="transparent")
+        nav_left.pack(side="left")
 
         if LOGO_PNG_PATH.exists():
             self.logo_image = ctk.CTkImage(
                 light_image=Image.open(LOGO_PNG_PATH),
                 dark_image=Image.open(LOGO_PNG_PATH),
-                size=(58, 58),
+                size=(32, 32),
             )
-            logo_label = ctk.CTkLabel(header_top, text="", image=self.logo_image)
-            logo_label.pack(side="left", padx=(0, 16))
+            ctk.CTkLabel(nav_left, text="", image=self.logo_image).pack(side="left", padx=(0, 12))
 
-        title_block = ctk.CTkFrame(header_top, fg_color="transparent")
-        title_block.pack(side="left", fill="x", expand=True)
-
-        title = ctk.CTkLabel(
-            title_block,
+        ctk.CTkLabel(
+            nav_left,
             text="InputLab",
-            font=self.ui_font(34, "bold", role="display"),
+            font=self.ui_font(22, "bold", role="display"),
             text_color=THEME["text"],
-        )
-        title.pack(anchor="w")
+        ).pack(side="left", pady=(2, 0))
 
-        subtitle = ctk.CTkLabel(
-            title_block,
-            text="Hotkeys, controller macros, profiles, and live action feedback in one focused control surface.",
-            font=self.ui_font(15, role="body"),
-            text_color=THEME["muted"],
-        )
-        subtitle.pack(anchor="w", pady=(6, 0))
+        nav_right = ctk.CTkFrame(top_nav, fg_color="transparent")
+        nav_right.pack(side="right")
 
-        version_chip = ctk.CTkLabel(
-            header_top,
-            text=f"v{APP_VERSION}",
-            width=74,
-            height=32,
-            corner_radius=16,
-            fg_color=THEME["field"],
-            text_color=THEME["muted"],
-            font=self.ui_font(13, "bold", role="body"),
-        )
-        version_chip.pack(side="right")
+        self.add_header_link(nav_right, "Features", self.scroll_to_workspace).pack(side="left", padx=(0, 8))
+        self.add_header_link(
+            nav_right,
+            "Download",
+            lambda: self.open_external_url("https://github.com/revb3d/InputLab/releases/latest"),
+        ).pack(side="left", padx=(0, 8))
+        self.add_header_link(
+            nav_right,
+            "Donate",
+            lambda: self.open_external_url("https://site-seven-topaz-23.vercel.app/donate"),
+        ).pack(side="left", padx=(0, 8))
+        self.add_header_link(
+            nav_right,
+            "GitHub",
+            lambda: self.open_external_url("https://github.com/revb3d/InputLab"),
+        ).pack(side="left", padx=(0, 18))
 
-        scroll_host = ctk.CTkFrame(
-            outer,
-            fg_color=THEME["shell"],
-            corner_radius=0,
+        self.header_cta_button = GradientButton(
+            nav_right,
+            text="Get InputLab",
+            command=lambda: self.open_external_url("https://github.com/revb3d/InputLab/releases/latest"),
+            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
+            width=140,
+            height=50,
+            corner_radius=24,
         )
-        scroll_host.pack(fill="both", expand=True, padx=22, pady=(0, 22))
+        self.header_cta_button.pack(side="left")
+
+        scroll_host = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
+        scroll_host.pack(fill="both", expand=True)
 
         self.body_canvas = tk.Canvas(
             scroll_host,
-            bg=THEME["shell"],
+            bg=THEME["app_bg"],
             bd=0,
             highlightthickness=0,
             relief="flat",
@@ -1068,10 +1057,10 @@ class KeyHoldApp:
             button_color=THEME["field"],
             button_hover_color=THEME["field_hover"],
         )
-        self.body_scrollbar.pack(side="right", fill="y", padx=(8, 0))
+        self.body_scrollbar.pack(side="right", fill="y", padx=(10, 0))
         self.body_canvas.configure(yscrollcommand=self.body_scrollbar.set)
 
-        self.body_canvas_frame = tk.Frame(self.body_canvas, bg=THEME["shell"], bd=0, highlightthickness=0)
+        self.body_canvas_frame = tk.Frame(self.body_canvas, bg=THEME["app_bg"], bd=0, highlightthickness=0)
         self.body_canvas_window = self.body_canvas.create_window(
             (0, 0),
             window=self.body_canvas_frame,
@@ -1081,167 +1070,214 @@ class KeyHoldApp:
         self.body_canvas.bind("<Configure>", self.on_body_canvas_configure)
         self.root.bind_all("<MouseWheel>", self.on_body_mousewheel, add="+")
 
-        body = ctk.CTkFrame(self.body_canvas_frame, fg_color=THEME["shell"])
-        body.pack(fill="both", expand=True)
+        self.page_shell = ctk.CTkFrame(self.body_canvas_frame, fg_color="transparent", corner_radius=0)
+        self.page_shell.pack(fill="x", expand=True)
 
-        sidebar = ctk.CTkFrame(
-            body,
-            width=220,
-            fg_color=THEME["panel_low"],
-            corner_radius=20,
+        self.content_area = ctk.CTkFrame(
+            self.page_shell,
+            fg_color=THEME["shell"],
+            corner_radius=34,
             border_color=THEME["border_soft"],
             border_width=1,
         )
-        sidebar.pack(side="left", fill="y", padx=(0, 16))
-        sidebar.pack_propagate(False)
+        self.content_area.pack(fill="x", pady=(4, 28))
 
-        nav_title = ctk.CTkLabel(
-            sidebar,
-            text="Sections",
+        self.add_accent_line(self.content_area, THEME["blue"], height=4, padx=28, pady=(26, 0))
+
+        hero = ctk.CTkFrame(self.content_area, fg_color="transparent")
+        hero.pack(fill="x", padx=28, pady=(24, 22))
+
+        hero_left = ctk.CTkFrame(hero, fg_color="transparent")
+        hero_left.pack(side="left", fill="both", expand=True, padx=(0, 22))
+
+        ctk.CTkLabel(
+            hero_left,
+            text="WINDOWS DESKTOP UTILITY FOR INPUT AUTOMATION",
+            font=self.ui_font(13, "bold", role="body"),
+            text_color=THEME["amber"],
+        ).pack(anchor="w", pady=(0, 16))
+
+        for line in ("Build", "keyboard", "holds and", "controller", "macros that"):
+            ctk.CTkLabel(
+                hero_left,
+                text=line,
+                font=self.ui_font(64, "bold", role="display"),
+                text_color=THEME["text"],
+            ).pack(anchor="w")
+
+        highlight_line = ctk.CTkFrame(hero_left, fg_color="transparent")
+        highlight_line.pack(anchor="w", pady=(0, 20))
+        ctk.CTkLabel(
+            highlight_line,
+            text="actually",
+            font=self.ui_font(64, "bold", role="display"),
+            text_color=THEME["blue"],
+        ).pack(side="left")
+        ctk.CTkLabel(
+            highlight_line,
+            text=" stay",
+            font=self.ui_font(64, "bold", role="display"),
+            text_color=THEME["amber"],
+        ).pack(side="left")
+        ctk.CTkLabel(
+            highlight_line,
+            text=" usable.",
+            font=self.ui_font(64, "bold", role="display"),
+            text_color=THEME["green"],
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            hero_left,
+            text=(
+                "InputLab gives you global keyboard holds, profile-based Xbox controller macros, "
+                "live progress, import/export, updater support, and a UI built for fast iteration."
+            ),
+            font=self.ui_font(15, role="body"),
+            text_color=THEME["muted"],
+            wraplength=560,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 18))
+
+        hero_actions = ctk.CTkFrame(hero_left, fg_color="transparent")
+        hero_actions.pack(anchor="w")
+
+        self.hero_primary_button = GradientButton(
+            hero_actions,
+            text="Open controller macro",
+            command=lambda: self.show_view("macro"),
+            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
+            width=230,
+            height=54,
+            corner_radius=26,
+        )
+        self.hero_primary_button.pack(side="left", padx=(0, 14))
+
+        ctk.CTkButton(
+            hero_actions,
+            text="Open keyboard hold",
+            height=54,
+            width=190,
+            corner_radius=24,
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color=THEME["text"],
+            font=self.ui_font(14, "bold", role="body"),
+            command=lambda: self.show_view("keyboard"),
+        ).pack(side="left")
+
+        hero_right = ctk.CTkFrame(hero, fg_color="transparent", width=520)
+        hero_right.pack(side="right", fill="y")
+        hero_right.pack_propagate(False)
+
+        core_card = self.build_website_card(hero_right, height=230)
+        core_card.pack(fill="x", pady=(0, 18))
+        ctk.CTkLabel(
+            core_card,
+            text="CORE MODULES",
+            font=self.ui_font(13, "bold", role="body"),
+            text_color=THEME["muted"],
+        ).pack(anchor="w", padx=24, pady=(24, 10))
+        ctk.CTkLabel(
+            core_card,
+            text="Keyboard hold",
+            font=self.ui_font(28, "bold", role="display"),
+            text_color=THEME["text"],
+        ).pack(anchor="w", padx=24)
+        ctk.CTkLabel(
+            core_card,
+            text="Toggle any key into a held state from a global hotkey without tabbing back into the app.",
+            font=self.ui_font(16, role="body"),
+            text_color=THEME["muted"],
+            wraplength=420,
+            justify="left",
+        ).pack(anchor="w", padx=24, pady=(8, 0))
+        self.make_card_clickable(core_card, lambda: self.show_view("keyboard"))
+
+        insight_grid = ctk.CTkFrame(hero_right, fg_color="transparent")
+        insight_grid.pack(fill="x")
+        insight_grid.grid_columnconfigure((0, 1), weight=1)
+
+        profiles_card = self.build_website_card(insight_grid, height=176)
+        profiles_card.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=(0, 12))
+        ctk.CTkLabel(
+            profiles_card,
+            text="CONTROLLER PROFILES",
+            font=self.ui_font(12, "bold", role="body"),
+            text_color=THEME["muted"],
+        ).pack(anchor="w", padx=24, pady=(22, 10))
+        ctk.CTkLabel(
+            profiles_card,
+            text="Loop timed Xbox button sequences with profile hotkeys, notes, and import/export.",
+            font=self.ui_font(15, role="body"),
+            text_color=THEME["muted"],
+            wraplength=190,
+            justify="left",
+        ).pack(anchor="w", padx=24)
+        self.make_card_clickable(profiles_card, lambda: self.show_view("macro"))
+
+        live_card = self.build_website_card(insight_grid, height=176)
+        live_card.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=(0, 12))
+        ctk.CTkLabel(
+            live_card,
+            text="LIVE PROGRESS",
+            font=self.ui_font(12, "bold", role="body"),
+            text_color=THEME["muted"],
+        ).pack(anchor="w", padx=24, pady=(22, 10))
+        ctk.CTkLabel(
+            live_card,
+            text="Current step, last action, next delay, and loop count are always visible.",
+            font=self.ui_font(15, role="body"),
+            text_color=THEME["muted"],
+            wraplength=190,
+            justify="left",
+        ).pack(anchor="w", padx=24)
+        self.make_card_clickable(live_card, lambda: self.show_view("macro"))
+
+        shipping_card = self.build_website_card(insight_grid, height=220)
+        shipping_card.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
+        ctk.CTkLabel(
+            shipping_card,
+            text="SHIPPING",
+            font=self.ui_font(12, "bold", role="body"),
+            text_color=THEME["muted"],
+        ).pack(anchor="w", padx=24, pady=(22, 10))
+        ctk.CTkLabel(
+            shipping_card,
+            textvariable=self.update_status_var,
             font=self.ui_font(18, "bold", role="display"),
             text_color=THEME["text"],
-        )
-        nav_title.pack(anchor="w", padx=18, pady=(18, 4))
-
+        ).pack(anchor="w", padx=24)
         ctk.CTkLabel(
-            sidebar,
-            text="Live modules",
-            font=self.ui_font(11, role="body"),
-            text_color=THEME["faint"],
-        ).pack(anchor="w", padx=18, pady=(0, 16))
-
-        self.keyboard_nav_row = ctk.CTkFrame(sidebar, fg_color="transparent")
-        self.keyboard_nav_row.pack(fill="x", padx=14, pady=(0, 10))
-
-        self.keyboard_activity_indicator = ctk.CTkLabel(
-            self.keyboard_nav_row,
-            text="",
-            width=12,
-            height=12,
-            corner_radius=6,
-            fg_color=THEME["border"],
-        )
-        self.keyboard_activity_indicator.pack(side="left", padx=(2, 10))
-
-        self.keyboard_nav_host = ctk.CTkFrame(self.keyboard_nav_row, fg_color="transparent")
-        self.keyboard_nav_host.pack(side="left", fill="x", expand=True)
-        self.keyboard_nav_host.bind("<Configure>", self.on_nav_host_configure)
-        self.keyboard_nav_active_button = GradientButton(
-            self.keyboard_nav_host,
-            text="Keyboard Hold",
-            command=lambda: self.show_view("keyboard"),
-            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
-            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=156,
-            height=48,
-            corner_radius=22,
-        )
-        self.keyboard_nav_button = ctk.CTkButton(
-            self.keyboard_nav_host,
-            text="Keyboard Hold",
-            height=48,
-            corner_radius=22,
-            anchor="w",
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(14, "bold", role="body"),
-            command=lambda: self.show_view("keyboard"),
-        )
-
-        self.macro_nav_row = ctk.CTkFrame(sidebar, fg_color="transparent")
-        self.macro_nav_row.pack(fill="x", padx=14)
-
-        self.macro_activity_indicator = ctk.CTkLabel(
-            self.macro_nav_row,
-            text="",
-            width=12,
-            height=12,
-            corner_radius=6,
-            fg_color=THEME["border"],
-        )
-        self.macro_activity_indicator.pack(side="left", padx=(2, 10))
-
-        self.macro_nav_host = ctk.CTkFrame(self.macro_nav_row, fg_color="transparent")
-        self.macro_nav_host.pack(side="left", fill="x", expand=True)
-        self.macro_nav_host.bind("<Configure>", self.on_nav_host_configure)
-        self.macro_nav_active_button = GradientButton(
-            self.macro_nav_host,
-            text="Controller Macro",
-            command=lambda: self.show_view("macro"),
-            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
-            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=156,
-            height=48,
-            corner_radius=22,
-        )
-        self.macro_nav_button = ctk.CTkButton(
-            self.macro_nav_host,
-            text="Controller Macro",
-            height=48,
-            corner_radius=22,
-            anchor="w",
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(14, "bold", role="body"),
-            command=lambda: self.show_view("macro"),
-        )
-
-        self.add_accent_line(sidebar, THEME["blue"], height=3, padx=18, pady=(18, 12))
-
-        update_card = ctk.CTkFrame(
-            sidebar,
-            fg_color=THEME["panel"],
-            corner_radius=18,
-            border_color=THEME["border_soft"],
-            border_width=1,
-        )
-        update_card.pack(fill="x", padx=14, pady=(0, 14))
-
-        ctk.CTkLabel(
-            update_card,
-            text="Updates",
-            font=self.ui_font(14, "bold", role="body"),
-            text_color=THEME["text"],
-        ).pack(anchor="w", padx=14, pady=(14, 6))
-
-        ctk.CTkLabel(
-            update_card,
-            textvariable=self.update_status_var,
-            font=self.ui_font(13, "bold", role="body"),
-            text_color="#dce7f8",
-            wraplength=154,
-            justify="left",
-        ).pack(anchor="w", padx=14)
-
-        ctk.CTkLabel(
-            update_card,
+            shipping_card,
             textvariable=self.update_detail_var,
-            font=self.ui_font(12, role="body"),
+            font=self.ui_font(14, role="body"),
             text_color=THEME["muted"],
-            wraplength=154,
+            wraplength=420,
             justify="left",
-        ).pack(anchor="w", padx=14, pady=(6, 12))
+        ).pack(anchor="w", padx=24, pady=(8, 16))
 
+        update_actions = ctk.CTkFrame(shipping_card, fg_color="transparent")
+        update_actions.pack(anchor="w", padx=24)
         self.check_updates_button = ctk.CTkButton(
-            update_card,
+            update_actions,
             text="Check for updates",
-            height=38,
-            corner_radius=12,
+            height=42,
+            width=168,
+            corner_radius=20,
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
             font=self.ui_font(13, "bold", role="body"),
             command=self.check_for_updates,
         )
-        self.check_updates_button.pack(fill="x", padx=14, pady=(0, 8))
-
+        self.check_updates_button.pack(side="left", padx=(0, 10))
         self.open_update_button = ctk.CTkButton(
-            update_card,
+            update_actions,
             text="Update now",
-            height=38,
-            corner_radius=12,
+            height=42,
+            width=148,
+            corner_radius=20,
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
@@ -1249,34 +1285,104 @@ class KeyHoldApp:
             command=self.download_and_install_update,
             state="disabled",
         )
-        self.open_update_button.pack(fill="x", padx=14, pady=(0, 14))
+        self.open_update_button.pack(side="left")
 
-        ctk.CTkLabel(
-            sidebar,
-            text="App",
-            font=self.ui_font(11, role="body"),
-            text_color=THEME["faint"],
-        ).pack(anchor="w", padx=18, pady=(0, 8))
+        workspace = ctk.CTkFrame(self.content_area, fg_color="transparent")
+        workspace.pack(fill="x", padx=28, pady=(4, 28))
 
-        self.settings_nav_row = ctk.CTkFrame(sidebar, fg_color="transparent")
-        self.settings_nav_row.pack(fill="x", padx=14, pady=(0, 14))
+        tabs_row = ctk.CTkFrame(workspace, fg_color="transparent")
+        tabs_row.pack(fill="x", pady=(0, 22))
 
+        self.keyboard_nav_row = ctk.CTkFrame(tabs_row, fg_color="transparent")
+        self.keyboard_nav_row.pack(side="left", padx=(0, 12))
+        self.keyboard_activity_indicator = ctk.CTkLabel(
+            self.keyboard_nav_row,
+            text="",
+            width=10,
+            height=10,
+            corner_radius=5,
+            fg_color=THEME["border"],
+        )
+        self.keyboard_activity_indicator.pack(side="left", padx=(0, 10), pady=(19, 0))
+        self.keyboard_nav_host = ctk.CTkFrame(self.keyboard_nav_row, fg_color="transparent")
+        self.keyboard_nav_host.pack(side="left")
+        self.keyboard_nav_active_button = GradientButton(
+            self.keyboard_nav_host,
+            text="Keyboard Hold",
+            command=lambda: self.show_view("keyboard"),
+            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
+            width=196,
+            height=48,
+            corner_radius=24,
+        )
+        self.keyboard_nav_button = ctk.CTkButton(
+            self.keyboard_nav_host,
+            text="Keyboard Hold",
+            height=48,
+            width=196,
+            corner_radius=24,
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color=THEME["text"],
+            font=self.ui_font(14, "bold", role="body"),
+            command=lambda: self.show_view("keyboard"),
+        )
+
+        self.macro_nav_row = ctk.CTkFrame(tabs_row, fg_color="transparent")
+        self.macro_nav_row.pack(side="left", padx=(0, 12))
+        self.macro_activity_indicator = ctk.CTkLabel(
+            self.macro_nav_row,
+            text="",
+            width=10,
+            height=10,
+            corner_radius=5,
+            fg_color=THEME["border"],
+        )
+        self.macro_activity_indicator.pack(side="left", padx=(0, 10), pady=(19, 0))
+        self.macro_nav_host = ctk.CTkFrame(self.macro_nav_row, fg_color="transparent")
+        self.macro_nav_host.pack(side="left")
+        self.macro_nav_active_button = GradientButton(
+            self.macro_nav_host,
+            text="Controller Macro",
+            command=lambda: self.show_view("macro"),
+            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
+            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
+            width=208,
+            height=48,
+            corner_radius=24,
+        )
+        self.macro_nav_button = ctk.CTkButton(
+            self.macro_nav_host,
+            text="Controller Macro",
+            height=48,
+            width=208,
+            corner_radius=24,
+            fg_color=THEME["field"],
+            hover_color=THEME["field_hover"],
+            text_color=THEME["text"],
+            font=self.ui_font(14, "bold", role="body"),
+            command=lambda: self.show_view("macro"),
+        )
+
+        self.settings_nav_row = ctk.CTkFrame(tabs_row, fg_color="transparent")
+        self.settings_nav_row.pack(side="left")
         self.settings_nav_active_button = GradientButton(
             self.settings_nav_row,
             text="Settings",
             command=lambda: self.show_view("settings"),
             colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
             hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=198,
+            width=168,
             height=48,
-            corner_radius=22,
+            corner_radius=24,
         )
         self.settings_nav_button = ctk.CTkButton(
             self.settings_nav_row,
             text="Settings",
             height=48,
-            corner_radius=22,
-            anchor="w",
+            width=168,
+            corner_radius=24,
             fg_color=THEME["field"],
             hover_color=THEME["field_hover"],
             text_color=THEME["text"],
@@ -1284,45 +1390,40 @@ class KeyHoldApp:
             command=lambda: self.show_view("settings"),
         )
 
-        self.content_area = ctk.CTkFrame(
-            body,
-            fg_color=THEME["panel_low"],
-            corner_radius=20,
-            border_color=THEME["panel_low"],
-            border_width=0,
-        )
-        self.content_area.pack(side="left", fill="both", expand=True)
-        self.content_area.bind("<Configure>", self.on_content_area_configure, add="+")
-
         self.content_shell = ctk.CTkFrame(
-            self.content_area,
+            workspace,
             fg_color=THEME["panel_low"],
-            corner_radius=0,
+            corner_radius=28,
+            border_color=THEME["border_soft"],
+            border_width=1,
         )
-        self.content_shell.pack(fill="x", anchor="n")
+        self.content_shell.pack(fill="both", expand=True)
 
-        self.workspace_accent = ctk.CTkFrame(
+        self.workspace_accent = tk.Canvas(
             self.content_shell,
-            fg_color=THEME["blue"],
+            bg=THEME["panel_low"],
             height=4,
+            bd=0,
+            highlightthickness=0,
+            relief="flat",
         )
-        self.workspace_accent.pack(fill="x", padx=20, pady=(18, 0))
-        self.workspace_accent.pack_propagate(False)
+        self.workspace_accent.pack(fill="x", padx=28, pady=(22, 0))
+        self.draw_gradient_strip(self.workspace_accent, 4)
 
         self.keyboard_view = ctk.CTkFrame(self.content_shell, fg_color=THEME["panel_low"])
         self.macro_view = ctk.CTkFrame(self.content_shell, fg_color=THEME["panel_low"])
         self.settings_view = ctk.CTkFrame(self.content_shell, fg_color=THEME["panel_low"])
         self.section_transition_overlay = ctk.CTkFrame(
-            self.content_area,
+            self.content_shell,
             fg_color=THEME["shell"],
-            corner_radius=20,
+            corner_radius=28,
             border_color=THEME["border_soft"],
             border_width=1,
         )
         self.section_transition_panel = ctk.CTkFrame(
             self.section_transition_overlay,
             fg_color=THEME["panel_high"],
-            corner_radius=22,
+            corner_radius=24,
             border_color=THEME["border_soft"],
             border_width=1,
             width=420,
@@ -1378,7 +1479,6 @@ class KeyHoldApp:
         self.build_keyboard_tab(self.keyboard_view)
         self.build_macro_tab(self.macro_view)
         self.build_settings_tab(self.settings_view)
-        # Force the rebuilt section frame to mount after a full UI refresh such as a theme change.
         self.current_view = ""
         self.show_view(target_view, instant=True)
         self.update_activity_indicators()
@@ -1390,14 +1490,14 @@ class KeyHoldApp:
         if event.width != self.body_canvas_last_width:
             self.body_canvas_last_width = event.width
             self.body_canvas.itemconfigure(self.body_canvas_window, width=event.width)
+            if hasattr(self, "page_shell"):
+                shell_width = min(max(event.width - 40, 980), 1260)
+                side_padding = max((event.width - shell_width) // 2, 0)
+                self.page_shell.pack_configure(padx=side_padding)
+                self.page_shell.configure(width=shell_width)
 
     def on_content_area_configure(self, event) -> None:
-        available_width = max(event.width - 20, 900)
-        shell_width = min(available_width, 1460)
-        if shell_width != self.content_shell_width:
-            self.content_shell_width = shell_width
-        side_padding = max((event.width - shell_width) // 2, 0)
-        self.content_shell.pack_configure(padx=side_padding)
+        self.content_shell_width = event.width
 
     def on_body_mousewheel(self, event) -> None:
         if not self.pointer_is_over_widget(self.body_canvas):
@@ -1499,6 +1599,8 @@ class KeyHoldApp:
         self.section_transition_after_ids = []
 
     def animate_view_switch(self) -> None:
+        if isinstance(self.workspace_accent, tk.Canvas):
+            return
         for after_id in self.view_animation_after_ids:
             self.root.after_cancel(after_id)
         self.view_animation_after_ids = []
@@ -1603,34 +1705,6 @@ class KeyHoldApp:
             text_color=THEME["faint"],
         )
         footer.pack(anchor="w", padx=24, pady=(6, 0))
-
-        update_section = self.build_section_frame(tab)
-        update_section.pack(fill="x", padx=20, pady=(0, 16))
-
-        ctk.CTkLabel(
-            update_section,
-            text="Automatic updates",
-            font=self.ui_font(14, "bold", role="body"),
-            text_color=THEME["text"],
-        ).pack(anchor="w", padx=18, pady=(16, 6))
-
-        ctk.CTkLabel(
-            update_section,
-            text="This build is locked to the official InputLab update feed and checks automatically after launch.",
-            font=self.ui_font(12, role="body"),
-            text_color=THEME["muted"],
-            wraplength=620,
-            justify="left",
-        ).pack(anchor="w", padx=18, pady=(0, 10))
-
-        ctk.CTkLabel(
-            update_section,
-            text=DEFAULT_UPDATE_MANIFEST_URL,
-            font=self.ui_font(12, role="body"),
-            text_color="#9fb2cf",
-            wraplength=620,
-            justify="left",
-        ).pack(anchor="w", padx=18, pady=(0, 16))
 
         self.key_status_badge = status_card.badge
         self.update_key_status()
@@ -2572,6 +2646,51 @@ class KeyHoldApp:
             border_width=1,
         )
         return frame
+
+    def build_website_card(self, parent, width: int | None = None, height: int | None = None) -> ctk.CTkFrame:
+        frame = ctk.CTkFrame(
+            parent,
+            fg_color=THEME["panel_high"],
+            corner_radius=28,
+            border_color=THEME["border_soft"],
+            border_width=1,
+        )
+        if width is not None:
+            frame.configure(width=width)
+        if height is not None:
+            frame.configure(height=height)
+            frame.pack_propagate(False)
+        return frame
+
+    def add_header_link(self, parent, text: str, command) -> ctk.CTkButton:
+        button = ctk.CTkButton(
+            parent,
+            text=text,
+            fg_color="transparent",
+            hover_color=THEME["field_hover"],
+            text_color=THEME["muted"],
+            font=self.ui_font(13, role="body"),
+            corner_radius=14,
+            height=34,
+            width=88,
+            command=command,
+        )
+        return button
+
+    def make_card_clickable(self, frame, command) -> None:
+        frame.bind("<Button-1>", lambda _event: command())
+        for child in frame.winfo_children():
+            child.bind("<Button-1>", lambda _event: command())
+
+    def open_external_url(self, url: str) -> None:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+
+    def scroll_to_workspace(self) -> None:
+        if hasattr(self, "body_canvas"):
+            self.body_canvas.yview_moveto(0.0)
 
     def on_nav_host_configure(self, _event=None) -> None:
         self.sync_nav_button_widths()
