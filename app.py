@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.19"
+APP_VERSION = "1.3.20"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -50,6 +50,10 @@ SYNE_EXTRABOLD_PATH = FONT_DIR / "Syne-ExtraBold.ttf"
 BODY_FONT_FAMILY = "Manrope"
 DISPLAY_FONT_FAMILY = "Syne"
 HIGH_PERFORMANCE_UI = True
+ENABLE_BACKGROUND_ANIMATION = not HIGH_PERFORMANCE_UI
+BACKGROUND_RENDER_SCALE = 0.5 if HIGH_PERFORMANCE_UI else 1.0
+BACKGROUND_RERENDER_THRESHOLD = 120 if HIGH_PERFORMANCE_UI else 40
+MACRO_PROGRESS_INTERVAL = 0.1 if HIGH_PERFORMANCE_UI else 0.05
 THEME_PRESETS = {
     "Website Match": {
         "app_bg": "#0c0d0d",
@@ -293,6 +297,10 @@ class GradientButton(tk.Canvas):
             self.command()
 
     def animate_to(self, target_colors: tuple[str, ...]) -> None:
+        if HIGH_PERFORMANCE_UI:
+            self.draw(target_colors)
+            self.animation_after_id = None
+            return
         if self.animation_after_id is not None:
             self.after_cancel(self.animation_after_id)
             self.animation_after_id = None
@@ -356,6 +364,8 @@ class GradientButton(tk.Canvas):
         )
 
     def draw_shadow(self, radius: int) -> None:
+        if HIGH_PERFORMANCE_UI:
+            return
         width = self.button_width - 2
         height = self.button_height - 2
         shadow = "#0a1114"
@@ -647,6 +657,8 @@ class KeyHoldApp:
         self.last_background_size = (0, 0)
         self.background_animation_phase = 0.0
         self.background_animation_after_id = None
+        self.gradient_strip_cache = {}
+        self.background_cache = {}
         self.apply_window_icon()
         self.startup_splash = None
         self.startup_status_var = tk.StringVar(value="Loading InputLab...")
@@ -710,7 +722,7 @@ class KeyHoldApp:
         self.window_opaque_after_id = None
         self.macro_progress_after_id = None
         self.macro_progress_pending = {}
-        self.macro_progress_min_interval = 0.05
+        self.macro_progress_min_interval = MACRO_PROGRESS_INTERVAL
         self.macro_progress_next_due = 0.0
         self.tray_icon = None
         self.tray_thread = None
@@ -726,7 +738,8 @@ class KeyHoldApp:
         self.content_shell_width = 0
 
         self.build_ui()
-        self.start_background_animation()
+        if ENABLE_BACKGROUND_ANIMATION:
+            self.start_background_animation()
         self.root.after(0, self.show_centered_window)
         self.register_key_hold_hotkey(self.toggle_hotkey)
         self.register_macro_hotkeys()
@@ -1511,15 +1524,10 @@ class KeyHoldApp:
         self.repaint_after_scroll()
 
     def repaint_after_scroll(self) -> None:
-        if HIGH_PERFORMANCE_UI:
-            return
-        if self.scroll_repaint_after_id is not None:
-            self.root.after_cancel(self.scroll_repaint_after_id)
-        self.scroll_repaint_after_id = self.root.after(45, self.finish_scroll_repaint)
+        return
 
     def finish_scroll_repaint(self) -> None:
         self.scroll_repaint_after_id = None
-        self.body_canvas.update_idletasks()
 
     @staticmethod
     def pointer_is_over_widget(widget) -> bool:
@@ -2924,56 +2932,112 @@ class KeyHoldApp:
         width = max(self.root.winfo_width(), 1600)
         height = max(self.root.winfo_height(), 960)
         self.last_background_size = (width, height)
+        cache_key = (width, height, tuple(THEME.items()), round(self.background_animation_phase, 2), HIGH_PERFORMANCE_UI)
+        cached_photo = self.background_cache.get(cache_key)
+        if cached_photo is not None:
+            self.background_photo = cached_photo
+            if self.background_label is None:
+                self.background_label = tk.Label(
+                    self.root,
+                    image=self.background_photo,
+                    bd=0,
+                    highlightthickness=0,
+                    bg=THEME["app_bg"],
+                )
+                self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+                self.background_label.lower()
+            else:
+                self.background_label.configure(image=self.background_photo)
+                self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
+                self.background_label.lower()
+            return
+
+        render_scale = BACKGROUND_RENDER_SCALE
+        render_width = max(int(width * render_scale), 800 if HIGH_PERFORMANCE_UI else width)
+        render_height = max(int(height * render_scale), 480 if HIGH_PERFORMANCE_UI else height)
+        scale_x = render_width / width
+        scale_y = render_height / height
+
+        def sx(value: float) -> int:
+            return int(value * scale_x)
+
+        def sy(value: float) -> int:
+            return int(value * scale_y)
+
         phase = self.background_animation_phase
         warm_shift_x = int(math.sin(phase) * 34)
         warm_shift_y = int(math.cos(phase * 0.82) * 24)
         cool_shift_x = int(math.cos(phase * 0.74) * 38)
         cool_shift_y = int(math.sin(phase * 0.67) * 26)
-        base = Image.new("RGBA", (width, height), (12, 13, 13, 255))
+        base = Image.new("RGBA", (render_width, render_height), (12, 13, 13, 255))
 
-        top_left = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        top_left = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
         top_left_draw = ImageDraw.Draw(top_left)
         top_left_draw.ellipse(
-            (-320 + warm_shift_x, -180 + warm_shift_y, int(width * 0.52) + warm_shift_x, int(height * 0.92) + warm_shift_y),
+            (
+                sx(-320 + warm_shift_x),
+                sy(-180 + warm_shift_y),
+                sx(width * 0.52 + warm_shift_x),
+                sy(height * 0.92 + warm_shift_y),
+            ),
             fill=(225, 140, 77, 88),
         )
         top_left_draw.ellipse(
-            (int(width * 0.08) - warm_shift_x, int(height * 0.10), int(width * 0.78) - warm_shift_x, int(height * 0.88)),
+            (
+                sx(width * 0.08 - warm_shift_x),
+                sy(height * 0.10),
+                sx(width * 0.78 - warm_shift_x),
+                sy(height * 0.88),
+            ),
             fill=(215, 219, 87, 42),
         )
-        top_left = top_left.filter(ImageFilter.GaussianBlur(160))
+        top_left = top_left.filter(ImageFilter.GaussianBlur(84 if HIGH_PERFORMANCE_UI else 160))
 
-        bottom_right = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        bottom_right = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
         bottom_right_draw = ImageDraw.Draw(bottom_right)
         bottom_right_draw.ellipse(
-            (int(width * 0.56) + cool_shift_x, int(height * 0.56) + cool_shift_y, width + 260 + cool_shift_x, height + 260 + cool_shift_y),
+            (
+                sx(width * 0.56 + cool_shift_x),
+                sy(height * 0.56 + cool_shift_y),
+                sx(width + 260 + cool_shift_x),
+                sy(height + 260 + cool_shift_y),
+            ),
             fill=(76, 167, 230, 86),
         )
         bottom_right_draw.ellipse(
-            (int(width * 0.34) - cool_shift_x, int(height * 0.28) - cool_shift_y, width + 120 - cool_shift_x, int(height * 1.02) - cool_shift_y),
+            (
+                sx(width * 0.34 - cool_shift_x),
+                sy(height * 0.28 - cool_shift_y),
+                sx(width + 120 - cool_shift_x),
+                sy(height * 1.02 - cool_shift_y),
+            ),
             fill=(79, 195, 156, 46),
         )
-        bottom_right = bottom_right.filter(ImageFilter.GaussianBlur(170))
+        bottom_right = bottom_right.filter(ImageFilter.GaussianBlur(88 if HIGH_PERFORMANCE_UI else 170))
 
-        center_shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        center_shadow = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
         center_shadow_draw = ImageDraw.Draw(center_shadow)
         center_shadow_draw.ellipse(
-            (int(width * 0.12), int(height * 0.08), int(width * 0.92), int(height * 0.96)),
+            (sx(width * 0.12), sy(height * 0.08), sx(width * 0.92), sy(height * 0.96)),
             fill=(8, 10, 10, 70),
         )
-        center_shadow = center_shadow.filter(ImageFilter.GaussianBlur(130))
+        center_shadow = center_shadow.filter(ImageFilter.GaussianBlur(68 if HIGH_PERFORMANCE_UI else 130))
 
-        vignette = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        vignette = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
         vignette_draw = ImageDraw.Draw(vignette)
-        vignette_draw.rectangle((0, 0, width, height), fill=(0, 0, 0, 32))
-        vignette = vignette.filter(ImageFilter.GaussianBlur(90))
+        vignette_draw.rectangle((0, 0, render_width, render_height), fill=(0, 0, 0, 32))
+        vignette = vignette.filter(ImageFilter.GaussianBlur(48 if HIGH_PERFORMANCE_UI else 90))
 
         base.alpha_composite(top_left)
         base.alpha_composite(bottom_right)
         base.alpha_composite(center_shadow)
         base.alpha_composite(vignette)
 
+        if HIGH_PERFORMANCE_UI and (render_width != width or render_height != height):
+            base = base.resize((width, height), Image.Resampling.BICUBIC)
+
         self.background_photo = ImageTk.PhotoImage(base)
+        self.background_cache = {cache_key: self.background_photo}
         if self.background_label is None:
             self.background_label = tk.Label(
                 self.root,
@@ -3001,11 +3065,13 @@ class KeyHoldApp:
         width = self.root.winfo_width()
         height = self.root.winfo_height()
         last_width, last_height = self.last_background_size
-        if abs(width - last_width) < 40 and abs(height - last_height) < 40:
+        if abs(width - last_width) < BACKGROUND_RERENDER_THRESHOLD and abs(height - last_height) < BACKGROUND_RERENDER_THRESHOLD:
             return
         self.render_app_background()
 
     def start_background_animation(self) -> None:
+        if not ENABLE_BACKGROUND_ANIMATION:
+            return
         if self.background_animation_after_id is not None:
             self.root.after_cancel(self.background_animation_after_id)
 
@@ -3022,21 +3088,25 @@ class KeyHoldApp:
 
     def draw_gradient_strip(self, canvas: tk.Canvas, height: int) -> None:
         canvas.delete("all")
-        canvas.update_idletasks()
         width = max(canvas.winfo_width(), 2)
         colors = (THEME["blue"], THEME["amber"], THEME["green"], THEME["cyan"])
-        segments = len(colors) - 1
-        strip_image = Image.new("RGB", (width, 1))
-        pixels = []
-        for x in range(width):
-            ratio = x / max(width - 1, 1)
-            segment = min(int(ratio * segments), segments - 1)
-            local_ratio = (ratio - (segment / segments)) * segments
-            color = self.mix_theme_hex(colors[segment], colors[segment + 1], local_ratio)
-            pixels.append(GradientButton.hex_to_rgb(color))
-        strip_image.putdata(pixels)
-        strip_image = strip_image.resize((width, height), Image.Resampling.BICUBIC)
-        canvas.gradient_photo = ImageTk.PhotoImage(strip_image)
+        cache_key = (width, height, colors)
+        gradient_photo = self.gradient_strip_cache.get(cache_key)
+        if gradient_photo is None:
+            segments = len(colors) - 1
+            strip_image = Image.new("RGB", (width, 1))
+            pixels = []
+            for x in range(width):
+                ratio = x / max(width - 1, 1)
+                segment = min(int(ratio * segments), segments - 1)
+                local_ratio = (ratio - (segment / segments)) * segments
+                color = self.mix_theme_hex(colors[segment], colors[segment + 1], local_ratio)
+                pixels.append(GradientButton.hex_to_rgb(color))
+            strip_image.putdata(pixels)
+            strip_image = strip_image.resize((width, height), Image.Resampling.BICUBIC)
+            gradient_photo = ImageTk.PhotoImage(strip_image)
+            self.gradient_strip_cache[cache_key] = gradient_photo
+        canvas.gradient_photo = gradient_photo
         canvas.create_image(0, 0, anchor="nw", image=canvas.gradient_photo)
 
     def mix_theme_hex(self, left: str, right: str, ratio: float) -> str:
@@ -3094,7 +3164,8 @@ class KeyHoldApp:
         if not self.root.winfo_viewable():
             return
         self.schedule_window_opaque_reset()
-        self.schedule_background_rerender()
+        if self.current_view:
+            self.schedule_background_rerender(150 if HIGH_PERFORMANCE_UI else 90)
 
     def on_root_map(self, _event=None) -> None:
         self.schedule_window_opaque_reset(20)
