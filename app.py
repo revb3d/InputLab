@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.25"
+APP_VERSION = "1.3.26"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -3099,7 +3099,7 @@ class KeyHoldApp:
 
         self.key_hold_hotkey_handle = keyboard.add_hotkey(
             hotkey,
-            self.toggle_hold,
+            self.queue_key_hold_toggle,
             suppress=False,
             trigger_on_release=False,
         )
@@ -3115,10 +3115,26 @@ class KeyHoldApp:
                 continue
             self.macro_hotkey_handles[profile["id"]] = keyboard.add_hotkey(
                 hotkey,
-                lambda profile_id=profile["id"]: self.toggle_macro(profile_id),
+                lambda profile_id=profile["id"]: self.queue_macro_toggle(profile_id),
                 suppress=False,
                 trigger_on_release=False,
             )
+
+    def queue_key_hold_toggle(self) -> None:
+        if not hasattr(self, "root"):
+            return
+        try:
+            self.root.after(0, self.toggle_hold)
+        except RuntimeError:
+            pass
+
+    def queue_macro_toggle(self, profile_id: str) -> None:
+        if not hasattr(self, "root"):
+            return
+        try:
+            self.root.after(0, lambda target=profile_id: self.toggle_macro(target, from_hotkey=True))
+        except RuntimeError:
+            pass
 
     def capture_target_key(self) -> None:
         if self.capture_target_hook is not None:
@@ -3968,18 +3984,18 @@ class KeyHoldApp:
             )
             return False
 
-    def toggle_macro(self, profile_id: str | None = None) -> None:
+    def toggle_macro(self, profile_id: str | None = None, from_hotkey: bool = False) -> None:
         target_profile_id = profile_id or self.selected_macro_profile_id
         if self.macro_running.is_set() and self.active_macro_profile_id == target_profile_id:
             self.stop_macro()
         else:
-            self.start_macro(target_profile_id)
+            self.start_macro(target_profile_id, from_hotkey=from_hotkey)
 
-    def start_macro(self, profile_id: str | None = None) -> None:
+    def start_macro(self, profile_id: str | None = None, from_hotkey: bool = False) -> None:
         target_profile = self.get_profile_by_id(profile_id or self.selected_macro_profile_id)
         if profile_id:
             self.selected_macro_profile_id = target_profile["id"]
-            if self.profile_editor_ready:
+            if self.profile_editor_ready and not from_hotkey:
                 self.refresh_profile_tabs()
                 self.load_selected_profile_into_editor()
 
@@ -4023,6 +4039,9 @@ class KeyHoldApp:
             daemon=True,
         )
         self.macro_thread.start()
+        if from_hotkey and self.profile_editor_ready and self.current_view == "macro":
+            self.root.after(60, self.refresh_profile_tabs)
+            self.root.after(60, self.load_selected_profile_into_editor)
         self.set_macro_status(
             "Running",
             f"{target_profile['name']} is looping now with a {target_profile['interval_seconds']:g} second interval. Press {target_profile['hotkey'].upper()} again to stop it.",

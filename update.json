@@ -1,5 +1,5 @@
 {
-  "version": "1.3.25",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.25/InputLabSetup.exe",
-  "notes": "Removed overly tight layout constraints: wider main container, less centering waste, wider module tabs, wrapping profile action buttons, a stronger fixed-width runtime column, and fewer fixed card sizes causing clipped text or cropped controls."
+  "version": "1.3.26",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.26/InputLabSetup.exe",
+  "notes": "Reduced macro hotkey start latency by routing global hotkey callbacks onto the Tk main thread and deferring the heavier profile editor refresh until after the macro loop has already started."
 }
