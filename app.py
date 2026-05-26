@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.28"
+APP_VERSION = "1.3.29"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -1295,6 +1295,8 @@ class KeyHoldApp:
         self.keyboard_view_built = False
         self.macro_view_built = False
         self.settings_view_built = False
+        self.macro_editor_initialized = False
+        self.macro_editor_init_pending = False
         self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
         self.macro_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
         self.settings_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
@@ -1372,12 +1374,28 @@ class KeyHoldApp:
                 self.build_settings_tab(self.settings_view)
                 self.settings_view_built = True
 
+    def schedule_macro_editor_initialization(self, delay_ms: int) -> None:
+        if self.macro_editor_initialized or self.macro_editor_init_pending:
+            return
+        self.macro_editor_init_pending = True
+        self.root.after(delay_ms, self.initialize_macro_editor)
+
+    def initialize_macro_editor(self) -> None:
+        self.macro_editor_init_pending = False
+        if self.macro_editor_initialized or not self.macro_view_built or not self.root.winfo_exists():
+            return
+        self.refresh_profile_tabs()
+        self.load_selected_profile_into_editor()
+        self.update_macro_status()
+        self.macro_editor_initialized = True
+
     def prewarm_secondary_views(self) -> None:
         if not self.root.winfo_exists():
             return
         if not self.macro_view_built:
             self.build_macro_tab(self.macro_view)
             self.macro_view_built = True
+            self.schedule_macro_editor_initialization(120)
             self.root.after(80, self.prewarm_secondary_views)
             return
         if not self.settings_view_built:
@@ -1523,6 +1541,8 @@ class KeyHoldApp:
             return
 
         self.ensure_view_built(view_name)
+        if view_name == "macro" and not self.macro_editor_initialized:
+            self.schedule_macro_editor_initialization(0)
         if instant or self.performance_mode or not hasattr(self, "section_transition_overlay"):
             self.apply_view_switch(view_name)
             return
@@ -1748,6 +1768,7 @@ class KeyHoldApp:
 
         self.profile_tabs_frame = ctk.CTkFrame(profile_section, fg_color="transparent")
         self.profile_tabs_frame.pack(fill="x", padx=18, pady=(0, 8))
+        self.profile_tab_widgets = []
 
         profile_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
         profile_actions.pack(fill="x", padx=18, pady=(0, 8))
@@ -2023,6 +2044,7 @@ class KeyHoldApp:
         self.macro_steps_rows_frame = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
         self.macro_steps_rows_frame.pack(fill="x")
         self.macro_step_widgets = []
+        self.macro_step_widget_pool = []
         self.render_macro_steps(self.macro_steps)
 
         step_actions = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
@@ -2158,9 +2180,6 @@ class KeyHoldApp:
 
         self.macro_status_badge = status_card.badge
         self.profile_editor_ready = True
-        self.refresh_profile_tabs()
-        self.load_selected_profile_into_editor()
-        self.update_macro_status()
 
     def build_settings_tab(self, tab) -> None:
         _, left, right = self.build_dashboard_tab_shell(
@@ -2305,13 +2324,15 @@ class KeyHoldApp:
         if not hasattr(self, "macro_steps_rows_frame"):
             return
 
-        for widget_set in getattr(self, "macro_step_widgets", []):
-            widget_set["row"].destroy()
-        self.macro_step_widgets = []
-
         rows = steps if steps else [{"button": "", "hold_ms": 90, "delay_ms": 120}]
-        for step in rows:
-            self.create_macro_step_row(step)
+        while len(self.macro_step_widget_pool) < len(rows):
+            self.create_macro_step_row({"button": "", "hold_ms": 90, "delay_ms": 120})
+        self.macro_step_widgets = self.macro_step_widget_pool[: len(rows)]
+        for widget_set, step in zip(self.macro_step_widgets, rows):
+            self.set_macro_step_widget_values(widget_set, step)
+            widget_set["row"].pack(fill="x", padx=18, pady=6)
+        for widget_set in self.macro_step_widget_pool[len(rows):]:
+            widget_set["row"].pack_forget()
         self.refresh_macro_step_numbers()
 
     def create_macro_step_row(self, step: dict) -> None:
@@ -2443,7 +2464,22 @@ class KeyHoldApp:
         remove_button.pack(side="right")
         widget_set["remove"] = remove_button
 
-        self.macro_step_widgets.append(widget_set)
+        self.macro_step_widget_pool.append(widget_set)
+
+    def set_macro_step_widget_values(self, widget_set: dict, step: dict) -> None:
+        button_value = str(step.get("button", "")).upper()
+        if widget_set["button"].get() != button_value:
+            widget_set["button"].set(button_value)
+
+        hold_value = str(step.get("hold_ms", 90))
+        if widget_set["hold_ms"].get() != hold_value:
+            widget_set["hold_ms"].delete(0, "end")
+            widget_set["hold_ms"].insert(0, hold_value)
+
+        delay_value = str(step.get("delay_ms", 120))
+        if widget_set["delay_ms"].get() != delay_value:
+            widget_set["delay_ms"].delete(0, "end")
+            widget_set["delay_ms"].insert(0, delay_value)
 
     def refresh_macro_step_numbers(self) -> None:
         for index, widget_set in enumerate(self.macro_step_widgets, start=1):
@@ -2480,7 +2516,7 @@ class KeyHoldApp:
 
         if widget_set in self.macro_step_widgets:
             self.macro_step_widgets.remove(widget_set)
-        widget_set["row"].destroy()
+        widget_set["row"].pack_forget()
         self.refresh_macro_step_numbers()
         self.on_body_scroll_frame_configure()
         self.set_macro_status("Step removed", "Removed that controller macro step.")
@@ -3434,20 +3470,18 @@ class KeyHoldApp:
         if not hasattr(self, "profile_tabs_frame"):
             return
 
-        values = [profile["name"] for profile in self.macro_profiles]
-        if not values:
-            values = ["Main Macro"]
+        values = [profile["name"] for profile in self.macro_profiles] or ["Main Macro"]
         selected_name = self.get_selected_profile()["name"]
         for child in self.profile_tabs_frame.winfo_children():
             child.destroy()
+        for index in range(len(values)):
+            self.profile_tabs_frame.grid_columnconfigure(index, weight=1, uniform="profile_tabs")
 
-        self.profile_tabs_frame.update_idletasks()
-        available_width = self.profile_tabs_frame.winfo_width()
-        if available_width <= 10:
-            available_width = max(self.profile_section.winfo_width() - 36, 320) if hasattr(self, "profile_section") else 920
+        available_width = max(self.content_shell_width - 520, 560) if self.content_shell_width else 920
         gap = 10 * max(len(values) - 1, 0)
-        button_width = max(150, min(available_width - gap, max((available_width - gap) // max(len(values), 1), 150)))
+        button_width = max(150, min(max((available_width - gap) // max(len(values), 1), 150), 260))
 
+        self.profile_tab_widgets = []
         for index, value in enumerate(values):
             if value == selected_name:
                 button = GradientButton(
@@ -3460,7 +3494,6 @@ class KeyHoldApp:
                     height=40,
                     corner_radius=14,
                 )
-                button.pack(side="left", fill="x", expand=True)
             else:
                 button = ctk.CTkButton(
                     self.profile_tabs_frame,
@@ -3473,9 +3506,8 @@ class KeyHoldApp:
                     font=self.ui_font(13, "bold", role="body"),
                     command=lambda target=value: self.on_profile_tab_selected(target),
                 )
-                button.pack(side="left", fill="x", expand=True)
-            if index < len(values) - 1:
-                ctk.CTkFrame(self.profile_tabs_frame, fg_color="transparent", width=10).pack(side="left")
+            button.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else 5, 0 if index == len(values) - 1 else 5))
+            self.profile_tab_widgets.append(button)
         self.delete_profile_button.configure(state="normal" if len(self.macro_profiles) > 1 else "disabled")
         self.refresh_hotkey_summary()
 
@@ -3484,18 +3516,12 @@ class KeyHoldApp:
             return
 
         profile = self.get_selected_profile()
-        self.profile_name_entry.delete(0, "end")
-        self.profile_name_entry.insert(0, profile["name"])
-        self.macro_hotkey_entry.delete(0, "end")
-        self.macro_hotkey_entry.insert(0, profile["hotkey"])
-        self.macro_window_title_entry.delete(0, "end")
-        self.macro_window_title_entry.insert(0, profile["run_condition"]["window_title"])
-        self.macro_process_name_entry.delete(0, "end")
-        self.macro_process_name_entry.insert(0, profile["run_condition"]["process_name"])
-        self.macro_interval_entry.delete(0, "end")
-        self.macro_interval_entry.insert(0, f"{profile['interval_seconds']:g}")
-        self.profile_notes_text.delete("1.0", "end")
-        self.profile_notes_text.insert("1.0", profile.get("notes", ""))
+        self.set_entry_if_changed(self.profile_name_entry, profile["name"])
+        self.set_entry_if_changed(self.macro_hotkey_entry, profile["hotkey"])
+        self.set_entry_if_changed(self.macro_window_title_entry, profile["run_condition"]["window_title"])
+        self.set_entry_if_changed(self.macro_process_name_entry, profile["run_condition"]["process_name"])
+        self.set_entry_if_changed(self.macro_interval_entry, f"{profile['interval_seconds']:g}")
+        self.set_textbox_if_changed(self.profile_notes_text, profile.get("notes", ""))
 
         self.render_macro_steps(profile["steps"])
 
@@ -4178,6 +4204,21 @@ class KeyHoldApp:
         self.sync_active_profile_fields()
         self.reset_macro_progress()
         self.update_activity_indicators()
+
+    @staticmethod
+    def set_entry_if_changed(entry, value: str) -> None:
+        if entry.get() == value:
+            return
+        entry.delete(0, "end")
+        entry.insert(0, value)
+
+    @staticmethod
+    def set_textbox_if_changed(textbox, value: str) -> None:
+        current = textbox.get("1.0", "end").strip()
+        if current == value:
+            return
+        textbox.delete("1.0", "end")
+        textbox.insert("1.0", value)
         self.macro_thread = threading.Thread(
             target=self.run_macro_loop,
             args=(target_profile, active_steps),
