@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.36"
+APP_VERSION = "1.3.37"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -903,9 +903,11 @@ class KeyHoldApp:
         scroll_host = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
         scroll_host.pack(fill="both", expand=True)
 
+        content_base_bg = THEME["app_bg"]
+
         self.body_canvas = tk.Canvas(
             scroll_host,
-            bg=shell_blend,
+            bg=content_base_bg,
             bd=0,
             highlightthickness=0,
             relief="flat",
@@ -924,20 +926,20 @@ class KeyHoldApp:
         self.body_scrollbar.pack(side="right", fill="y", padx=(10, 0))
         self.body_canvas.configure(yscrollcommand=self.body_scrollbar.set)
 
-        self.body_canvas_frame = tk.Frame(self.body_canvas, bg=shell_blend, bd=0, highlightthickness=0)
+        self.body_canvas_frame = tk.Frame(self.body_canvas, bg=content_base_bg, bd=0, highlightthickness=0)
         self.body_canvas_window = self.body_canvas.create_window((0, 0), window=self.body_canvas_frame, anchor="nw")
         self.body_canvas_frame.bind("<Configure>", self.on_body_scroll_frame_configure)
         self.body_canvas.bind("<Configure>", self.on_body_canvas_configure)
         self.root.bind_all("<MouseWheel>", self.on_body_mousewheel, add="+")
 
-        self.page_shell = ctk.CTkFrame(self.body_canvas_frame, fg_color=shell_blend, corner_radius=0)
+        self.page_shell = ctk.CTkFrame(self.body_canvas_frame, fg_color=content_base_bg, corner_radius=0)
         self.page_shell.pack(fill="x", expand=True)
 
         self.content_area = ctk.CTkFrame(
             self.page_shell,
-            fg_color=shell_blend,
+            fg_color=content_base_bg,
             corner_radius=30,
-            border_color=shell_blend,
+            border_color=content_base_bg,
             border_width=0,
         )
         self.content_area.pack(fill="x", pady=(2, 22))
@@ -4672,6 +4674,7 @@ class KeyHoldApp:
 if __name__ == "__main__":
     app = KeyHoldApp()
     app.run()
+
 
 
 
