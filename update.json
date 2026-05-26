@@ -1,9 +1,9 @@
 {
-  "version": "1.3.48",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.48/InputLabSetup.exe",
+  "version": "1.3.49",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.49/InputLabSetup.exe",
   "notes": [
-    "Fixed controller profile tab selection to use stable profile IDs instead of names.",
-    "Prevented generic UI sync from silently persisting duplicate profile names or hotkeys during actions like Start, Add Profile, or tab switching.",
-    "This fixes cases where editing a new profile could appear to overwrite or duplicate other profiles."
+    "Fixed profile tab selection so the selected profile highlights immediately when clicked.",
+    "Fixed profile tab sizing so the selected gradient tab no longer grows or clips its text.",
+    "Profile tab labels now use measured truncation instead of rough character counts for cleaner fit."
   ]
 }

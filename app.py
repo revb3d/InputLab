@@ -16,6 +16,7 @@ from ctypes import wintypes
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog
+from tkinter import font as tkfont
 
 import customtkinter as ctk
 import keyboard
@@ -43,7 +44,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.47"
+APP_VERSION = "1.3.49"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -2498,12 +2499,35 @@ class KeyHoldApp:
             if width <= 1:
                 continue
             target_width = max(width - 2, 144)
-            text = self.ellipsize_text(tab.get("text", ""), max(12, min(target_width // 10, 26)))
+            text = self.fit_profile_tab_text(
+                tab.get("text", ""),
+                max(target_width - 30, 40),
+            )
             if isinstance(button, GradientButton):
                 button.text = text
                 button.set_size(width=target_width, height=40)
             else:
                 button.configure(text=text, width=target_width)
+
+    def fit_profile_tab_text(self, text: str, width_px: int) -> str:
+        if width_px <= 24:
+            return ""
+        font = tkfont.Font(font=self.ui_font(13, "bold", role="body"))
+        if font.measure(text) <= width_px:
+            return text
+        ellipsis = "..."
+        low = 0
+        high = len(text)
+        best = ellipsis
+        while low <= high:
+            mid = (low + high) // 2
+            candidate = f"{text[:mid].rstrip()}{ellipsis}"
+            if font.measure(candidate) <= width_px:
+                best = candidate
+                low = mid + 1
+            else:
+                high = mid - 1
+        return best
 
     def add_labeled_entry(
         self,
@@ -3285,7 +3309,7 @@ class KeyHoldApp:
             if profile_id == selected_profile_id:
                 button = GradientButton(
                     host,
-                    text=self.ellipsize_text(value, max(12, min(button_width // 10, 26))),
+                    text=self.fit_profile_tab_text(value, max(button_width - 30, 40)),
                     command=lambda target=profile_id: self.on_profile_tab_selected(target),
                     colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
                     hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
@@ -3296,7 +3320,7 @@ class KeyHoldApp:
             else:
                 button = ctk.CTkButton(
                     host,
-                    text=self.ellipsize_text(value, max(12, min(button_width // 10, 26))),
+                    text=self.fit_profile_tab_text(value, max(button_width - 30, 40)),
                     height=40,
                     width=max(button_width - 2, 144),
                     corner_radius=14,
@@ -3633,6 +3657,7 @@ class KeyHoldApp:
 
         self.sync_config_from_ui()
         self.selected_macro_profile_id = profile_id
+        self.refresh_profile_tabs()
         self.load_selected_profile_into_editor()
         self.save_config()
 
