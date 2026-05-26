@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.34"
+APP_VERSION = "1.3.35"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -837,7 +837,7 @@ class KeyHoldApp:
         if self.ui_root is not None:
             self.ui_root.destroy()
             self.ui_root = None
-        shell_blend = self.mix_theme_hex(THEME["app_bg"], THEME["shell"], 0.52)
+        shell_blend = self.mix_theme_hex(THEME["app_bg"], THEME["shell_high"], 0.9)
         border_subtle = self.mix_theme_hex(THEME["panel_low"], THEME["border_soft"], 0.45)
         self.outer_shell_bg = shell_blend
         self.root.configure(fg_color=shell_blend)
@@ -4672,6 +4672,7 @@ class KeyHoldApp:
 if __name__ == "__main__":
     app = KeyHoldApp()
     app.run()
+
 
 
 
