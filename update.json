@@ -1,9 +1,9 @@
 {
-  "version": "1.3.42",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.42/InputLabSetup.exe",
+  "version": "1.3.44",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.44/InputLabSetup.exe",
   "notes": [
-    "Removed the extra centered scroll-frame layer that kept repainting a large dark rectangle behind the workspace.",
-    "The page shell now mounts directly into the scroll canvas, preserving the layout while removing the redundant opaque slab.",
-    "Layout and controls remain unchanged."
+    "Replaced the fake-transparent shell frames inside the scroll canvas with an explicit shell background color.",
+    "This removes the persistent dark workspace rectangle without changing layout or controls.",
+    "Cards remain dark; only the outer shell surfaces were corrected."
   ]
 }

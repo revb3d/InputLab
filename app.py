@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.42"
+APP_VERSION = "1.3.44"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -590,6 +590,7 @@ class KeyHoldApp:
         self.logo_photo = None
         self.background_photo = None
         self.background_label = None
+        self.body_canvas_background_item = None
         self.background_render_after_id = None
         self.last_background_size = (0, 0)
         self.background_animation_phase = 0.0
@@ -929,13 +930,14 @@ class KeyHoldApp:
         self.body_canvas.bind("<Configure>", self.on_body_canvas_configure)
         self.root.bind_all("<MouseWheel>", self.on_body_mousewheel, add="+")
 
-        self.page_shell = ctk.CTkFrame(self.body_canvas, fg_color="transparent", corner_radius=0)
+        self.page_shell = ctk.CTkFrame(self.body_canvas, fg_color=shell_blend, corner_radius=0)
         self.body_canvas_window = self.body_canvas.create_window((0, 0), window=self.page_shell, anchor="nw")
         self.page_shell.bind("<Configure>", self.on_body_scroll_frame_configure)
+        self.sync_body_canvas_background()
 
         self.content_area = ctk.CTkFrame(
             self.page_shell,
-            fg_color="transparent",
+            fg_color=shell_blend,
             corner_radius=30,
             border_color=content_base_bg,
             border_width=0,
@@ -1097,7 +1099,7 @@ class KeyHoldApp:
 
         self.content_shell = ctk.CTkFrame(
             self.content_area,
-            fg_color="transparent",
+            fg_color=shell_blend,
             corner_radius=24,
             border_color=content_base_bg,
             border_width=1,
@@ -1115,7 +1117,7 @@ class KeyHoldApp:
         self.workspace_accent.pack(fill="x", padx=24, pady=(18, 0))
         self.draw_gradient_strip(self.workspace_accent, 3)
 
-        self.view_stack = ctk.CTkFrame(self.content_shell, fg_color="transparent")
+        self.view_stack = ctk.CTkFrame(self.content_shell, fg_color=shell_blend)
         self.view_stack.pack(fill="both", expand=True)
         self.view_stack.grid_rowconfigure(0, weight=1)
         self.view_stack.grid_columnconfigure(0, weight=1)
@@ -1132,9 +1134,9 @@ class KeyHoldApp:
         self.macro_step_hydration_after_id = None
         self.macro_deferred_step_rows = []
         self.settings_prewarm_pending = False
-        self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color="transparent")
-        self.macro_view = ctk.CTkFrame(self.view_stack, fg_color="transparent")
-        self.settings_view = ctk.CTkFrame(self.view_stack, fg_color="transparent")
+        self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color=shell_blend)
+        self.macro_view = ctk.CTkFrame(self.view_stack, fg_color=shell_blend)
+        self.settings_view = ctk.CTkFrame(self.view_stack, fg_color=shell_blend)
         self.keyboard_view.grid(row=0, column=0, sticky="nsew")
         self.macro_view.grid(row=0, column=0, sticky="nsew")
         self.settings_view.grid(row=0, column=0, sticky="nsew")
@@ -1193,6 +1195,21 @@ class KeyHoldApp:
 
     def on_body_scroll_frame_configure(self, _event=None) -> None:
         self.body_canvas.configure(scrollregion=self.body_canvas.bbox("all"))
+
+    def sync_body_canvas_background(self) -> None:
+        if not hasattr(self, "body_canvas") or self.body_canvas is None or self.background_photo is None:
+            return
+        if self.body_canvas_background_item is None:
+            self.body_canvas_background_item = self.body_canvas.create_image(
+                0,
+                0,
+                image=self.background_photo,
+                anchor="nw",
+            )
+        else:
+            self.body_canvas.itemconfigure(self.body_canvas_background_item, image=self.background_photo)
+        self.body_canvas.coords(self.body_canvas_background_item, 0, 0)
+        self.body_canvas.tag_lower(self.body_canvas_background_item)
 
     def ensure_view_built(self, view_name: str) -> None:
         if view_name == "keyboard":
@@ -2820,6 +2837,7 @@ class KeyHoldApp:
                 self.background_label.configure(image=self.background_photo, bg=background_fill)
                 self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
                 self.background_label.lower()
+            self.sync_body_canvas_background()
             return
 
         base = self.build_background_master(theme_signature, phase_bucket)
@@ -2842,6 +2860,7 @@ class KeyHoldApp:
             self.background_label.configure(image=self.background_photo, bg=background_fill)
             self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
             self.background_label.lower()
+        self.sync_body_canvas_background()
 
     def schedule_background_rerender(self, delay_ms: int = 90) -> None:
         if self.background_render_after_id is not None:
