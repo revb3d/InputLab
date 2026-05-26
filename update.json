@@ -1,9 +1,9 @@
 {
-  "version": "1.3.31",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.31/InputLabSetup.exe",
+  "version": "1.3.32",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.32/InputLabSetup.exe",
   "notes": [
-    "Controller Macro now opens in phased stages: shell first, primary controls next, and deferred secondary panels after paint.",
-    "Macro profile notes, statistics, import/export actions, and step-row hydration are delayed so the first open path stays responsive.",
-    "First Controller Macro open time was reduced significantly without removing any features."
+    "Fixed the startup crash caused by session profile stats initializing after state sync during app boot.",
+    "Softened the outer shell backgrounds and aligned the root, wrapper, and rendered background base colors to remove the hard black strip around the app shell.",
+    "Improved profile pill sizing and status-card text wrapping to reduce clipping in the dashboard."
   ]
 }

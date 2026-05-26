@@ -19,6 +19,17 @@ from tkinter import filedialog
 
 import customtkinter as ctk
 import keyboard
+from backend.config import APP_DIR, load_config as backend_load_config, write_config_payload as backend_write_config_payload
+from backend.profiles import (
+    build_macro_profile,
+    default_macro_steps,
+    default_profile_stats,
+    normalize_macro_profile as backend_normalize_macro_profile,
+    normalize_macro_steps as backend_normalize_macro_steps,
+    safe_float as backend_safe_float,
+    safe_int as backend_safe_int,
+)
+from backend.state import AppState
 from PIL import Image, ImageTk, ImageDraw, ImageFilter
 try:
     import pystray
@@ -32,12 +43,7 @@ try:
 except ImportError:
     vg = None
 
-
-APP_DIR = Path(__file__).resolve().parent
-USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
-CONFIG_PATH = USER_DATA_DIR / "config.json"
-LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.31"
+APP_VERSION = "1.3.32"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -560,81 +566,6 @@ RECORDER_KEY_TO_BUTTON = {
     "left": "DPAD_LEFT",
     "right": "DPAD_RIGHT",
 }
-def default_macro_steps() -> list[dict]:
-    return [
-        {"button": "X", "hold_ms": 100, "delay_ms": 1000},
-        {"button": "A", "hold_ms": 90, "delay_ms": 13000},
-        {"button": "A", "hold_ms": 90, "delay_ms": 1000},
-        {"button": "A", "hold_ms": 90, "delay_ms": 1000},
-    ]
-
-
-def default_run_condition() -> dict:
-    return {
-        "window_title": "",
-        "process_name": "",
-    }
-
-
-def default_profile_stats() -> dict:
-    return {
-        "total_loops": 0,
-        "total_runtime_seconds": 0.0,
-        "last_run_at": "",
-        "last_run_duration_seconds": 0.0,
-    }
-
-
-def build_macro_profile(
-    profile_id: str,
-    name: str,
-    hotkey: str = "f3",
-    interval_seconds: float = 78,
-    steps: list[dict] | None = None,
-    run_condition: dict | None = None,
-    notes: str = "",
-    stats: dict | None = None,
-) -> dict:
-    base_stats = default_profile_stats()
-    loaded_stats = stats or {}
-    for key in base_stats:
-        if key in loaded_stats:
-            base_stats[key] = loaded_stats[key]
-    return {
-        "id": profile_id,
-        "name": name,
-        "hotkey": hotkey,
-        "interval_seconds": interval_seconds,
-        "steps": [step.copy() for step in (steps if steps is not None else default_macro_steps())],
-        "run_condition": {
-            "window_title": str((run_condition or default_run_condition()).get("window_title", "")).strip(),
-            "process_name": str((run_condition or default_run_condition()).get("process_name", "")).strip().lower(),
-        },
-        "notes": str(notes).strip(),
-        "stats": {
-            "total_loops": int(base_stats.get("total_loops", 0) or 0),
-            "total_runtime_seconds": float(base_stats.get("total_runtime_seconds", 0.0) or 0.0),
-            "last_run_at": str(base_stats.get("last_run_at", "") or ""),
-            "last_run_duration_seconds": float(base_stats.get("last_run_duration_seconds", 0.0) or 0.0),
-        },
-    }
-
-
-DEFAULT_CONFIG = {
-    "toggle_hotkey": "f2",
-    "target_key": "w",
-    "theme_name": DEFAULT_THEME_NAME,
-    "performance_mode": True,
-    "overlay_enabled": False,
-    "close_to_tray": True,
-    "minimize_to_tray": True,
-    "selected_macro_profile_id": "main",
-    "macro_profiles": [
-        build_macro_profile("main", "Main Macro"),
-    ],
-}
-
-
 class KeyHoldApp:
     def __init__(self) -> None:
         self.configure_windows_dpi_awareness()
@@ -651,7 +582,8 @@ class KeyHoldApp:
         self.ensure_window_opaque()
 
         self.config = self.load_config()
-        self.theme_name = self.config["theme_name"]
+        self.state = AppState.from_config(self.config)
+        self.theme_name = self.state.theme_name
         self.apply_theme(self.theme_name)
         self.root.configure(fg_color=THEME["app_bg"])
         self.logo_image = None
@@ -672,16 +604,17 @@ class KeyHoldApp:
         self.startup_status_var = tk.StringVar(value="Loading InputLab...")
         self.create_startup_splash()
 
-        self.toggle_hotkey = self.config["toggle_hotkey"]
-        self.target_key = self.config["target_key"]
+        self.toggle_hotkey = self.state.toggle_hotkey
+        self.target_key = self.state.target_key
         self.update_manifest_url = DEFAULT_UPDATE_MANIFEST_URL
-        self.performance_mode = self.config["performance_mode"]
-        self.overlay_enabled = self.config["overlay_enabled"]
-        self.close_to_tray = self.config["close_to_tray"]
-        self.minimize_to_tray = self.config["minimize_to_tray"]
-        self.macro_profiles = self.config["macro_profiles"]
-        self.selected_macro_profile_id = self.config["selected_macro_profile_id"]
-        self.active_macro_profile_id = ""
+        self.performance_mode = self.state.performance_mode
+        self.overlay_enabled = self.state.overlay_enabled
+        self.close_to_tray = self.state.close_to_tray
+        self.minimize_to_tray = self.state.minimize_to_tray
+        self.macro_profiles = self.state.macro_profiles
+        self.selected_macro_profile_id = self.state.selected_macro_profile_id
+        self.active_macro_profile_id = self.state.active_macro_profile_id
+        self.session_profile_stats = self.state.session_profile_stats
         self.profile_editor_ready = False
         self.sync_active_profile_fields()
 
@@ -740,7 +673,6 @@ class KeyHoldApp:
         self.exiting_to_system = False
         self.macro_run_started_at = 0.0
         self.active_macro_loop_count = 0
-        self.session_profile_stats = {profile["id"]: {"session_loops": 0, "session_runtime_seconds": 0.0} for profile in self.macro_profiles}
         self.recorder_hook = None
         self.recorder_active = False
         self.recorder_key_down_times = {}
@@ -763,110 +695,15 @@ class KeyHoldApp:
             self.root.after(900, self.enable_overlay_window)
 
     def load_config(self) -> dict:
-        config = DEFAULT_CONFIG.copy()
-        config["macro_profiles"] = [profile.copy() for profile in DEFAULT_CONFIG["macro_profiles"]]
-        for profile in config["macro_profiles"]:
-            profile["steps"] = [step.copy() for step in profile["steps"]]
-            profile["run_condition"] = profile["run_condition"].copy()
-            profile["stats"] = profile["stats"].copy()
-
-        self.ensure_user_data_dir()
-
-        if not CONFIG_PATH.exists():
-            legacy_config = self.load_config_file(LEGACY_CONFIG_PATH)
-            if legacy_config is not None:
-                self.write_config_payload(legacy_config)
-                return legacy_config
-
-            self.write_config_payload(config)
-            return config
-
-        loaded_config = self.load_config_file(CONFIG_PATH)
-        if loaded_config is not None:
-            return loaded_config
-
-        self.write_config_payload(config)
-        return config
-
-    def load_config_file(self, path: Path) -> dict | None:
-        if not path.exists():
-            return None
-
-        try:
-            raw_data = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return None
-
-        config = DEFAULT_CONFIG.copy()
-        config["macro_profiles"] = [profile.copy() for profile in DEFAULT_CONFIG["macro_profiles"]]
-        for profile in config["macro_profiles"]:
-            profile["steps"] = [step.copy() for step in profile["steps"]]
-            profile["run_condition"] = profile["run_condition"].copy()
-            profile["stats"] = profile["stats"].copy()
-
-        config["toggle_hotkey"] = str(raw_data.get("toggle_hotkey", config["toggle_hotkey"])).lower()
-        config["target_key"] = str(raw_data.get("target_key", config["target_key"])).lower()
-        config["theme_name"] = str(raw_data.get("theme_name", config["theme_name"])).strip() or config["theme_name"]
-        config["performance_mode"] = bool(raw_data.get("performance_mode", config["performance_mode"]))
-        config["overlay_enabled"] = bool(raw_data.get("overlay_enabled", config["overlay_enabled"]))
-        config["close_to_tray"] = bool(raw_data.get("close_to_tray", config["close_to_tray"]))
-        config["minimize_to_tray"] = bool(raw_data.get("minimize_to_tray", config["minimize_to_tray"]))
-        if config["theme_name"] == "Graphite + Electric Lime":
-            config["theme_name"] = DEFAULT_THEME_NAME
-        if config["theme_name"] not in THEME_PRESETS:
-            config["theme_name"] = DEFAULT_THEME_NAME
-        raw_profiles = raw_data.get("macro_profiles")
-        normalized_profiles = []
-        if isinstance(raw_profiles, list) and raw_profiles:
-            for index, raw_profile in enumerate(raw_profiles, start=1):
-                normalized = self.normalize_macro_profile(raw_profile, index)
-                if normalized is not None:
-                    normalized_profiles.append(normalized)
-
-        if not normalized_profiles:
-            legacy_steps = self.normalize_macro_steps(raw_data.get("macro_steps", []))
-            normalized_profiles = [
-                build_macro_profile(
-                    "main",
-                    "Main Macro",
-                    hotkey=str(raw_data.get("macro_hotkey", "f3")).lower(),
-                    interval_seconds=self.safe_float(raw_data.get("macro_interval_seconds"), 78),
-                    steps=legacy_steps,
-                )
-            ]
-
-        config["macro_profiles"] = normalized_profiles
-        selected_profile_id = str(raw_data.get("selected_macro_profile_id", normalized_profiles[0]["id"])).strip()
-        if not any(profile["id"] == selected_profile_id for profile in normalized_profiles):
-            selected_profile_id = normalized_profiles[0]["id"]
-        config["selected_macro_profile_id"] = selected_profile_id
-        return config
-
-    def ensure_user_data_dir(self) -> None:
-        USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        return backend_load_config(DEFAULT_THEME_NAME, set(THEME_PRESETS))
 
     def write_config_payload(self, payload: dict) -> None:
-        self.ensure_user_data_dir()
-        CONFIG_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        backend_write_config_payload(payload)
 
     def save_config(self) -> None:
         self.sync_config_from_ui()
-        selected_profile = self.get_selected_profile()
-        payload = {
-            "toggle_hotkey": self.toggle_hotkey,
-            "target_key": self.target_key,
-            "theme_name": self.theme_name,
-            "performance_mode": self.performance_mode,
-            "overlay_enabled": self.overlay_enabled,
-            "close_to_tray": self.close_to_tray,
-            "minimize_to_tray": self.minimize_to_tray,
-            "selected_macro_profile_id": self.selected_macro_profile_id,
-            "macro_profiles": self.macro_profiles,
-            "macro_hotkey": selected_profile["hotkey"],
-            "macro_interval_seconds": selected_profile["interval_seconds"],
-            "macro_steps": selected_profile["steps"],
-        }
-        self.write_config_payload(payload)
+        self.sync_state_from_runtime()
+        self.write_config_payload(self.state.to_config_payload())
 
     def sync_config_from_ui(self) -> None:
         if hasattr(self, "hotkey_entry"):
@@ -918,6 +755,21 @@ class KeyHoldApp:
 
             self.sync_active_profile_fields()
 
+    def sync_state_from_runtime(self) -> None:
+        self.state.toggle_hotkey = self.toggle_hotkey
+        self.state.target_key = self.target_key
+        self.state.theme_name = self.theme_name
+        self.state.performance_mode = self.performance_mode
+        self.state.overlay_enabled = self.overlay_enabled
+        self.state.close_to_tray = self.close_to_tray
+        self.state.minimize_to_tray = self.minimize_to_tray
+        self.state.selected_macro_profile_id = self.selected_macro_profile_id
+        self.state.macro_profiles = self.macro_profiles
+        self.state.active_macro_profile_id = self.active_macro_profile_id
+        self.state.session_profile_stats = self.session_profile_stats
+        self.state.sync_session_profile_stats()
+        self.state.sync_active_profile_fields()
+
     def apply_theme(self, theme_name: str) -> None:
         selected_theme = THEME_PRESETS.get(theme_name, THEME_PRESETS[DEFAULT_THEME_NAME])
         THEME.clear()
@@ -935,58 +787,29 @@ class KeyHoldApp:
             cache.pop(oldest_key, None)
 
     def normalize_macro_steps(self, raw_steps) -> list[dict]:
-        normalized_steps = []
-        fallback_steps = default_macro_steps()
-        source_steps = raw_steps if isinstance(raw_steps, list) and raw_steps else fallback_steps
-        for index, raw_step in enumerate(source_steps):
-            base_step = fallback_steps[index].copy() if index < len(fallback_steps) else {
-                "button": "",
-                "hold_ms": 90,
-                "delay_ms": 120,
-            }
-            if isinstance(raw_step, dict):
-                loaded_step = raw_step
-                base_step["button"] = str(loaded_step.get("button", base_step["button"])).upper()
-                base_step["hold_ms"] = self.safe_int(loaded_step.get("hold_ms"), base_step["hold_ms"])
-                base_step["delay_ms"] = self.safe_int(loaded_step.get("delay_ms"), base_step["delay_ms"])
-            normalized_steps.append(base_step)
-        return normalized_steps
+        return backend_normalize_macro_steps(raw_steps)
 
     def normalize_macro_profile(self, raw_profile, index: int) -> dict | None:
-        if not isinstance(raw_profile, dict):
-            return None
-
-        profile_id = str(raw_profile.get("id", "")).strip() or f"profile-{index}"
-        profile_name = str(raw_profile.get("name", "")).strip() or f"Profile {index}"
-        hotkey = str(raw_profile.get("hotkey", "f3")).strip().lower()
-        interval_seconds = self.safe_float(raw_profile.get("interval_seconds"), 78)
-        steps = self.normalize_macro_steps(raw_profile.get("steps", []))
-        run_condition = raw_profile.get("run_condition", {})
-        if not isinstance(run_condition, dict):
-            run_condition = {}
-        notes = str(raw_profile.get("notes", "")).strip()
-        stats = raw_profile.get("stats", {})
-        if not isinstance(stats, dict):
-            stats = {}
-        return build_macro_profile(profile_id, profile_name, hotkey, interval_seconds, steps, run_condition, notes, stats)
+        return backend_normalize_macro_profile(raw_profile, index)
 
     def get_profile_by_id(self, profile_id: str) -> dict:
-        for profile in self.macro_profiles:
-            if profile["id"] == profile_id:
-                return profile
-        return self.macro_profiles[0]
+        self.sync_state_from_runtime()
+        return self.state.get_profile_by_id(profile_id)
 
     def get_selected_profile(self) -> dict:
-        return self.get_profile_by_id(self.selected_macro_profile_id)
+        self.sync_state_from_runtime()
+        return self.state.get_selected_profile()
 
     def sync_active_profile_fields(self) -> None:
-        profile = self.get_selected_profile()
+        self.sync_state_from_runtime()
+        profile = self.state.get_selected_profile()
         self.macro_hotkey = profile["hotkey"]
         self.macro_interval_seconds = profile["interval_seconds"]
         self.macro_steps = [step.copy() for step in profile["steps"]]
         self.macro_run_condition = profile["run_condition"].copy()
         self.macro_notes = profile["notes"]
         self.macro_stats = profile["stats"].copy()
+        self.state.sync_active_profile_fields()
 
     def build_new_profile(self, name: str | None = None) -> dict:
         profile_number = len(self.macro_profiles) + 1
@@ -1014,22 +837,25 @@ class KeyHoldApp:
         if self.ui_root is not None:
             self.ui_root.destroy()
             self.ui_root = None
-        self.root.configure(fg_color=THEME["app_bg"])
+        shell_blend = self.mix_theme_hex(THEME["app_bg"], THEME["shell"], 0.52)
+        border_subtle = self.mix_theme_hex(THEME["panel_low"], THEME["border_soft"], 0.45)
+        self.outer_shell_bg = shell_blend
+        self.root.configure(fg_color=shell_blend)
         self.root.unbind_all("<MouseWheel>")
 
-        outer = ctk.CTkFrame(self.root, fg_color="transparent", corner_radius=0)
+        outer = ctk.CTkFrame(self.root, fg_color=shell_blend, corner_radius=0)
         outer.pack(fill="both", expand=True, padx=24, pady=20)
         self.ui_root = outer
 
-        top_nav = ctk.CTkFrame(outer, fg_color="transparent")
+        top_nav = ctk.CTkFrame(outer, fg_color=shell_blend)
         top_nav.pack(fill="x", pady=(0, 14))
 
-        self.top_nav_inner = ctk.CTkFrame(top_nav, fg_color="transparent", height=42)
+        self.top_nav_inner = ctk.CTkFrame(top_nav, fg_color=shell_blend, height=42)
         self.top_nav_inner.pack(fill="x")
         self.top_nav_inner.grid_columnconfigure(0, weight=1)
         self.top_nav_inner.grid_columnconfigure(1, weight=0)
 
-        nav_left = ctk.CTkFrame(self.top_nav_inner, fg_color="transparent")
+        nav_left = ctk.CTkFrame(self.top_nav_inner, fg_color=shell_blend)
         nav_left.grid(row=0, column=0, sticky="w")
         if LOGO_PNG_PATH.exists():
             self.logo_image = ctk.CTkImage(
@@ -1045,7 +871,7 @@ class KeyHoldApp:
             text_color=THEME["text"],
         ).pack(side="left", pady=(1, 0))
 
-        nav_right = ctk.CTkFrame(self.top_nav_inner, fg_color="transparent")
+        nav_right = ctk.CTkFrame(self.top_nav_inner, fg_color=shell_blend)
         nav_right.grid(row=0, column=1, sticky="e")
         self.header_version_chip = ctk.CTkLabel(
             nav_right,
@@ -1074,12 +900,12 @@ class KeyHoldApp:
         )
         self.header_update_button.pack(side="left")
 
-        scroll_host = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
+        scroll_host = ctk.CTkFrame(outer, fg_color=shell_blend, corner_radius=0)
         scroll_host.pack(fill="both", expand=True)
 
         self.body_canvas = tk.Canvas(
             scroll_host,
-            bg=THEME["app_bg"],
+            bg=shell_blend,
             bd=0,
             highlightthickness=0,
             relief="flat",
@@ -1098,21 +924,21 @@ class KeyHoldApp:
         self.body_scrollbar.pack(side="right", fill="y", padx=(10, 0))
         self.body_canvas.configure(yscrollcommand=self.body_scrollbar.set)
 
-        self.body_canvas_frame = tk.Frame(self.body_canvas, bg=THEME["app_bg"], bd=0, highlightthickness=0)
+        self.body_canvas_frame = tk.Frame(self.body_canvas, bg=shell_blend, bd=0, highlightthickness=0)
         self.body_canvas_window = self.body_canvas.create_window((0, 0), window=self.body_canvas_frame, anchor="nw")
         self.body_canvas_frame.bind("<Configure>", self.on_body_scroll_frame_configure)
         self.body_canvas.bind("<Configure>", self.on_body_canvas_configure)
         self.root.bind_all("<MouseWheel>", self.on_body_mousewheel, add="+")
 
-        self.page_shell = ctk.CTkFrame(self.body_canvas_frame, fg_color="transparent", corner_radius=0)
+        self.page_shell = ctk.CTkFrame(self.body_canvas_frame, fg_color=shell_blend, corner_radius=0)
         self.page_shell.pack(fill="x", expand=True)
 
         self.content_area = ctk.CTkFrame(
             self.page_shell,
             fg_color=THEME["shell"],
             corner_radius=30,
-            border_color=THEME["border_soft"],
-            border_width=1,
+            border_color=shell_blend,
+            border_width=0,
         )
         self.content_area.pack(fill="x", pady=(2, 22))
         self.content_area.bind("<Configure>", self.on_content_area_configure, add="+")
@@ -1273,7 +1099,7 @@ class KeyHoldApp:
             self.content_area,
             fg_color=THEME["panel_low"],
             corner_radius=24,
-            border_color=THEME["border_soft"],
+            border_color=border_subtle,
             border_width=1,
         )
         self.content_shell.pack(fill="both", expand=True, padx=16, pady=(0, 24))
@@ -1455,6 +1281,8 @@ class KeyHoldApp:
 
     def on_content_area_configure(self, event) -> None:
         self.content_shell_width = event.width
+        if hasattr(self, "profile_tab_widgets"):
+            self.sync_profile_tab_widths()
 
     def on_body_mousewheel(self, event) -> None:
         if not self.pointer_is_over_widget(self.body_canvas):
@@ -2498,9 +2326,21 @@ class KeyHoldApp:
             font=self.ui_font(14, role="body"),
             text_color="#c6d2e5",
         )
-        detail.pack(anchor="w", padx=18, pady=(0, 18))
+        detail.pack(anchor="w", fill="x", expand=True, padx=18, pady=(0, 18))
+
+        def sync_wraplength(event=None) -> None:
+            if not card.winfo_exists():
+                return
+            width = card.winfo_width() if event is None else event.width
+            if width <= 1:
+                return
+            detail.configure(wraplength=max(width - 42, 220))
+
+        card.bind("<Configure>", sync_wraplength, add="+")
+        self.root.after(0, sync_wraplength)
 
         card.badge = badge
+        card.detail_label = detail
         return card
 
     def add_accent_line(self, parent, color: str, height: int, padx: int, pady) -> None:
@@ -2607,6 +2447,29 @@ class KeyHoldApp:
                 continue
             target_width = max(width - 2, 120)
             button.set_size(width=target_width, height=48)
+
+    @staticmethod
+    def ellipsize_text(text: str, max_chars: int) -> str:
+        if max_chars < 5 or len(text) <= max_chars:
+            return text
+        return f"{text[:max_chars - 1].rstrip()}…"
+
+    def sync_profile_tab_widths(self) -> None:
+        for tab in getattr(self, "profile_tab_widgets", []):
+            host = tab.get("host")
+            button = tab.get("button")
+            if host is None or button is None:
+                continue
+            width = host.winfo_width()
+            if width <= 1:
+                continue
+            target_width = max(width - 2, 144)
+            text = self.ellipsize_text(tab.get("text", ""), max(12, min(target_width // 10, 26)))
+            if isinstance(button, GradientButton):
+                button.text = text
+                button.set_size(width=target_width, height=40)
+            else:
+                button.configure(text=text, width=target_width)
 
     def add_labeled_entry(
         self,
@@ -2863,7 +2726,9 @@ class KeyHoldApp:
         def py(value: float) -> int:
             return int(render_height * value)
 
-        base = Image.new("RGBA", (render_width, render_height), (12, 13, 13, 255))
+        base_hex = getattr(self, "outer_shell_bg", self.mix_theme_hex(THEME["app_bg"], THEME["shell"], 0.52))
+        base_rgb = GradientButton.hex_to_rgb(base_hex)
+        base = Image.new("RGBA", (render_width, render_height), (*base_rgb, 255))
 
         top_left = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
         top_left_draw = ImageDraw.Draw(top_left)
@@ -2937,6 +2802,7 @@ class KeyHoldApp:
         theme_signature = tuple(THEME.items())
         phase_bucket = self.current_background_phase_bucket()
         cache_key = (width, height, theme_signature, phase_bucket, self.performance_mode)
+        background_fill = getattr(self, "outer_shell_bg", THEME["app_bg"])
         cached_photo = self.background_cache.get(cache_key)
         if cached_photo is not None:
             self.background_photo = cached_photo
@@ -2946,12 +2812,12 @@ class KeyHoldApp:
                     image=self.background_photo,
                     bd=0,
                     highlightthickness=0,
-                    bg=THEME["app_bg"],
+                    bg=background_fill,
                 )
                 self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
                 self.background_label.lower()
             else:
-                self.background_label.configure(image=self.background_photo)
+                self.background_label.configure(image=self.background_photo, bg=background_fill)
                 self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
                 self.background_label.lower()
             return
@@ -2968,12 +2834,12 @@ class KeyHoldApp:
                 image=self.background_photo,
                 bd=0,
                 highlightthickness=0,
-                bg=THEME["app_bg"],
+                bg=background_fill,
             )
             self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
             self.background_label.lower()
         else:
-            self.background_label.configure(image=self.background_photo)
+            self.background_label.configure(image=self.background_photo, bg=background_fill)
             self.background_label.place(relx=0, rely=0, relwidth=1, relheight=1)
             self.background_label.lower()
 
@@ -3363,31 +3229,38 @@ class KeyHoldApp:
         selected_name = self.get_selected_profile()["name"]
         for child in self.profile_tabs_frame.winfo_children():
             child.destroy()
+        self.profile_tab_widgets = []
         for index in range(len(values)):
             self.profile_tabs_frame.grid_columnconfigure(index, weight=1, uniform="profile_tabs")
 
-        available_width = max(self.content_shell_width - 520, 560) if self.content_shell_width else 920
+        frame_width = self.profile_tabs_frame.winfo_width()
+        if frame_width <= 1:
+            frame_width = self.profile_section.winfo_width() - 36 if hasattr(self, "profile_section") else 0
+        available_width = max(frame_width - 12, 560) if frame_width > 1 else max(self.content_shell_width - 520, 620) if self.content_shell_width else 920
         gap = 10 * max(len(values) - 1, 0)
-        button_width = max(150, min(max((available_width - gap) // max(len(values), 1), 150), 260))
+        button_width = max(168, min(max((available_width - gap) // max(len(values), 1), 168), 320))
 
-        self.profile_tab_widgets = []
         for index, value in enumerate(values):
+            host = ctk.CTkFrame(self.profile_tabs_frame, fg_color="transparent", height=40, width=button_width)
+            host.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else 5, 0 if index == len(values) - 1 else 5))
+            host.grid_propagate(False)
             if value == selected_name:
                 button = GradientButton(
-                    self.profile_tabs_frame,
-                    text=value,
+                    host,
+                    text=self.ellipsize_text(value, max(12, min(button_width // 10, 26))),
                     command=lambda target=value: self.on_profile_tab_selected(target),
                     colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
                     hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-                    width=button_width,
+                    width=max(button_width - 2, 144),
                     height=40,
                     corner_radius=14,
                 )
             else:
                 button = ctk.CTkButton(
-                    self.profile_tabs_frame,
-                    text=value,
+                    host,
+                    text=self.ellipsize_text(value, max(12, min(button_width // 10, 26))),
                     height=40,
+                    width=max(button_width - 2, 144),
                     corner_radius=14,
                     fg_color=THEME["panel_high"],
                     hover_color=THEME["field_hover"],
@@ -3395,10 +3268,11 @@ class KeyHoldApp:
                     font=self.ui_font(13, "bold", role="body"),
                     command=lambda target=value: self.on_profile_tab_selected(target),
                 )
-            button.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else 5, 0 if index == len(values) - 1 else 5))
-            self.profile_tab_widgets.append(button)
+            button.pack(fill="both", expand=True)
+            self.profile_tab_widgets.append({"host": host, "button": button, "text": value})
         self.delete_profile_button.configure(state="normal" if len(self.macro_profiles) > 1 else "disabled")
         self.refresh_hotkey_summary()
+        self.root.after_idle(self.sync_profile_tab_widths)
 
     def load_selected_profile_into_editor(self) -> None:
         if not self.profile_editor_ready:
@@ -4788,17 +4662,11 @@ class KeyHoldApp:
 
     @staticmethod
     def safe_int(value, fallback: int) -> int:
-        try:
-            return int(value)
-        except (TypeError, ValueError):
-            return fallback
+        return backend_safe_int(value, fallback)
 
     @staticmethod
     def safe_float(value, fallback: float) -> float:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return fallback
+        return backend_safe_float(value, fallback)
 
 
 if __name__ == "__main__":
