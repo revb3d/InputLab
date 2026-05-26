@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.29"
+APP_VERSION = "1.3.30"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -664,6 +664,9 @@ class KeyHoldApp:
         self.background_animation_after_id = None
         self.gradient_strip_cache = {}
         self.background_cache = {}
+        self.post_paint_startup_after_id = None
+        self.settings_prewarm_after_id = None
+        self.auto_update_check_after_id = None
         self.apply_window_icon()
         self.startup_splash = None
         self.startup_status_var = tk.StringVar(value="Loading InputLab...")
@@ -751,7 +754,6 @@ class KeyHoldApp:
         if ENABLE_BACKGROUND_ANIMATION:
             self.start_background_animation()
         self.root.after(0, self.show_centered_window)
-        self.root.after(1200, self.auto_check_for_updates)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.bind("<Unmap>", self.on_window_unmap)
@@ -1011,7 +1013,6 @@ class KeyHoldApp:
         if self.ui_root is not None:
             self.ui_root.destroy()
             self.ui_root = None
-        self.render_app_background()
         self.root.configure(fg_color=THEME["app_bg"])
         self.root.unbind_all("<MouseWheel>")
 
@@ -1297,6 +1298,9 @@ class KeyHoldApp:
         self.settings_view_built = False
         self.macro_editor_initialized = False
         self.macro_editor_init_pending = False
+        self.macro_content_initialized = False
+        self.macro_content_init_pending = False
+        self.settings_prewarm_pending = False
         self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
         self.macro_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
         self.settings_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
@@ -1354,7 +1358,6 @@ class KeyHoldApp:
             self.settings_view_built = True
         self.current_view = ""
         self.show_view(target_view, instant=True)
-        self.root.after(120, self.prewarm_secondary_views)
         self.update_activity_indicators()
 
     def on_body_scroll_frame_configure(self, _event=None) -> None:
@@ -1374,8 +1377,29 @@ class KeyHoldApp:
                 self.build_settings_tab(self.settings_view)
                 self.settings_view_built = True
 
+    def schedule_macro_content_initialization(self, delay_ms: int) -> None:
+        if self.macro_content_initialized or self.macro_content_init_pending or not self.macro_view_built:
+            return
+        self.macro_content_init_pending = True
+        self.root.after(delay_ms, self.initialize_macro_tab_content)
+
+    def initialize_macro_tab_content(self) -> None:
+        self.macro_content_init_pending = False
+        if self.macro_content_initialized or not self.macro_view_built or not self.root.winfo_exists():
+            return
+        if hasattr(self, "macro_loading_card"):
+            self.macro_loading_card.destroy()
+            self.macro_loading_card = None
+        self.populate_macro_tab_content(self.macro_shell_frame, self.macro_left_column, self.macro_right_column)
+        self.macro_content_initialized = True
+        self.schedule_macro_editor_initialization(0)
+
     def schedule_macro_editor_initialization(self, delay_ms: int) -> None:
-        if self.macro_editor_initialized or self.macro_editor_init_pending:
+        if (
+            self.macro_editor_initialized
+            or self.macro_editor_init_pending
+            or not self.macro_content_initialized
+        ):
             return
         self.macro_editor_init_pending = True
         self.root.after(delay_ms, self.initialize_macro_editor)
@@ -1390,13 +1414,8 @@ class KeyHoldApp:
         self.macro_editor_initialized = True
 
     def prewarm_secondary_views(self) -> None:
+        self.settings_prewarm_after_id = None
         if not self.root.winfo_exists():
-            return
-        if not self.macro_view_built:
-            self.build_macro_tab(self.macro_view)
-            self.macro_view_built = True
-            self.schedule_macro_editor_initialization(120)
-            self.root.after(80, self.prewarm_secondary_views)
             return
         if not self.settings_view_built:
             self.build_settings_tab(self.settings_view)
@@ -1541,8 +1560,8 @@ class KeyHoldApp:
             return
 
         self.ensure_view_built(view_name)
-        if view_name == "macro" and not self.macro_editor_initialized:
-            self.schedule_macro_editor_initialization(0)
+        if view_name == "macro":
+            self.schedule_macro_content_initialization(0)
         if instant or self.performance_mode or not hasattr(self, "section_transition_overlay"):
             self.apply_view_switch(view_name)
             return
@@ -1748,7 +1767,19 @@ class KeyHoldApp:
             "Controller Macro",
             "Build shareable Xbox-controller profiles with separate hotkeys, loops, and live step feedback.",
         )
+        self.macro_shell_frame = shell
+        self.macro_left_column = left
+        self.macro_right_column = right
+        self.macro_loading_card = self.build_info_card(
+            left,
+            "LOADING",
+            "Preparing controller tools",
+            "Profile controls, live progress, and the step editor will load as soon as this tab is opened.",
+            wraplength=520,
+        )
+        self.macro_loading_card.pack(fill="x", pady=(0, 12))
 
+    def populate_macro_tab_content(self, shell, left, right) -> None:
         config_split = ctk.CTkFrame(left, fg_color="transparent")
         config_split.pack(fill="x", pady=(0, 10))
         config_split.grid_columnconfigure(0, weight=8, minsize=460)
@@ -1775,261 +1806,120 @@ class KeyHoldApp:
         profile_actions.grid_columnconfigure((0, 1), weight=1, uniform="profile_actions")
 
         self.add_profile_button = ctk.CTkButton(
-            profile_actions,
-            text="Add Profile",
-            height=38,
-            corner_radius=12,
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.add_macro_profile,
+            profile_actions, text="Add Profile", height=38, corner_radius=12,
+            fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"],
+            font=self.ui_font(13, "bold", role="body"), command=self.add_macro_profile,
         )
         self.add_profile_button.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 8))
 
         self.duplicate_profile_button = ctk.CTkButton(
-            profile_actions,
-            text="Duplicate Profile",
-            height=38,
-            corner_radius=12,
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.duplicate_macro_profile,
+            profile_actions, text="Duplicate Profile", height=38, corner_radius=12,
+            fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"],
+            font=self.ui_font(13, "bold", role="body"), command=self.duplicate_macro_profile,
         )
         self.duplicate_profile_button.grid(row=0, column=1, sticky="ew", padx=(6, 0), pady=(0, 8))
 
         self.reset_profile_button = ctk.CTkButton(
-            profile_actions,
-            text="Reset Profile",
-            height=38,
-            corner_radius=12,
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.reset_macro_profile,
+            profile_actions, text="Reset Profile", height=38, corner_radius=12,
+            fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"],
+            font=self.ui_font(13, "bold", role="body"), command=self.reset_macro_profile,
         )
-        self.reset_profile_button.grid(row=1, column=0, sticky="ew", padx=(0, 6), pady=(0, 0))
+        self.reset_profile_button.grid(row=1, column=0, sticky="ew", padx=(0, 6))
 
         self.delete_profile_button = ctk.CTkButton(
-            profile_actions,
-            text="Delete Profile",
-            height=38,
-            corner_radius=12,
-            fg_color="#25151a",
-            hover_color="#3b1b23",
-            text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.delete_macro_profile,
+            profile_actions, text="Delete Profile", height=38, corner_radius=12,
+            fg_color="#25151a", hover_color="#3b1b23", text_color=THEME["text"],
+            font=self.ui_font(13, "bold", role="body"), command=self.delete_macro_profile,
         )
-        self.delete_profile_button.grid(row=1, column=1, sticky="ew", padx=(6, 0), pady=(0, 0))
+        self.delete_profile_button.grid(row=1, column=1, sticky="ew", padx=(6, 0))
 
         profile_share_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
         profile_share_actions.pack(fill="x", padx=18, pady=(8, 16))
         profile_share_actions.grid_columnconfigure((0, 1), weight=1, uniform="profile_share")
 
         self.import_profiles_button = ctk.CTkButton(
-            profile_share_actions,
-            text="Import Profiles",
-            height=38,
-            corner_radius=12,
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.import_macro_profiles,
+            profile_share_actions, text="Import Profiles", height=38, corner_radius=12,
+            fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"],
+            font=self.ui_font(13, "bold", role="body"), command=self.import_macro_profiles,
         )
         self.import_profiles_button.grid(row=0, column=0, sticky="ew", padx=(0, 6))
 
         self.export_profiles_button = ctk.CTkButton(
-            profile_share_actions,
-            text="Export Profiles",
-            height=38,
-            corner_radius=12,
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.export_macro_profiles,
+            profile_share_actions, text="Export Profiles", height=38, corner_radius=12,
+            fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"],
+            font=self.ui_font(13, "bold", role="body"), command=self.export_macro_profiles,
         )
         self.export_profiles_button.grid(row=0, column=1, sticky="ew", padx=(6, 0))
 
         setup = self.build_section_frame(config_split)
         setup.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
-
         setup_grid = ctk.CTkFrame(setup, fg_color="transparent")
         setup_grid.pack(fill="x", padx=10, pady=(10, 4))
         setup_grid.grid_columnconfigure((0, 1), weight=1, uniform="macro_fields")
 
-        self.profile_name_entry = self.add_dense_entry_card(
-            setup_grid,
-            0,
-            0,
-            "Profile name",
-            "Example: Farm Route 1",
-            self.get_selected_profile()["name"],
-        )
-
-        self.macro_hotkey_entry = self.add_dense_entry_card(
-            setup_grid,
-            0,
-            1,
-            "Macro hotkey",
-            "Example: f3, ctrl+shift+m",
-            self.macro_hotkey,
-        )
-        self.macro_interval_entry = self.add_dense_entry_card(
-            setup_grid,
-            1,
-            0,
-            "Loop interval",
-            "Example: 75",
-            str(self.macro_interval_seconds),
-        )
-
-        self.macro_window_title_entry = self.add_dense_entry_card(
-            setup_grid,
-            1,
-            1,
-            "Window title match",
-            "Optional: Forza",
-            self.macro_run_condition["window_title"],
-        )
-
-        self.macro_process_name_entry = self.add_dense_entry_card(
-            setup_grid,
-            2,
-            0,
-            "Process name match",
-            "Optional: forza.exe",
-            self.macro_run_condition["process_name"],
-        )
+        self.profile_name_entry = self.add_dense_entry_card(setup_grid, 0, 0, "Profile name", "Example: Farm Route 1", self.get_selected_profile()["name"])
+        self.macro_hotkey_entry = self.add_dense_entry_card(setup_grid, 0, 1, "Macro hotkey", "Example: f3, ctrl+shift+m", self.macro_hotkey)
+        self.macro_interval_entry = self.add_dense_entry_card(setup_grid, 1, 0, "Loop interval", "Example: 75", str(self.macro_interval_seconds))
+        self.macro_window_title_entry = self.add_dense_entry_card(setup_grid, 1, 1, "Window title match", "Optional: Forza", self.macro_run_condition["window_title"])
+        self.macro_process_name_entry = self.add_dense_entry_card(setup_grid, 2, 0, "Process name match", "Optional: forza.exe", self.macro_run_condition["process_name"])
         ctk.CTkFrame(setup_grid, fg_color="transparent").grid(row=2, column=1, sticky="ew", padx=8, pady=8)
 
         capture_actions = ctk.CTkFrame(setup, fg_color="transparent")
         capture_actions.pack(fill="x", padx=18, pady=(0, 6))
-
         self.capture_window_button = ctk.CTkButton(
-            capture_actions,
-            text="Capture In 3s",
-            height=38,
-            corner_radius=12,
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.arm_window_capture,
+            capture_actions, text="Capture In 3s", height=38, corner_radius=12,
+            fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"],
+            font=self.ui_font(13, "bold", role="body"), command=self.arm_window_capture,
         )
         self.capture_window_button.pack(side="left")
-
-        condition_hint = ctk.CTkLabel(
+        ctk.CTkLabel(
             setup,
             text="Leave both match fields blank to let the profile run anywhere. Use Capture In 3s, then tab into the game before the countdown finishes.",
-            font=self.ui_font(12, role="body"),
-            text_color=THEME["muted"],
-            wraplength=560,
-            justify="left",
-        )
-        condition_hint.pack(anchor="w", padx=18, pady=(8, 10))
-
-        macro_hint = ctk.CTkLabel(
+            font=self.ui_font(12, role="body"), text_color=THEME["muted"], wraplength=560, justify="left",
+        ).pack(anchor="w", padx=18, pady=(8, 10))
+        ctk.CTkLabel(
             setup,
             text="Each step presses one virtual Xbox button, waits, releases it, then waits again before the next step. After the full sequence finishes, the macro waits for the loop interval before starting over.",
-            font=self.ui_font(12, role="body"),
-            text_color=THEME["muted"],
-            wraplength=560,
-            justify="left",
-        )
-        macro_hint.pack(anchor="w", padx=18, pady=(0, 10))
+            font=self.ui_font(12, role="body"), text_color=THEME["muted"], wraplength=560, justify="left",
+        ).pack(anchor="w", padx=18, pady=(0, 10))
 
         progress_frame = self.build_section_frame(right)
         progress_frame.pack(fill="x", pady=(0, 10))
-
         progress_header_row = ctk.CTkFrame(progress_frame, fg_color="transparent")
         progress_header_row.pack(fill="x", padx=18, pady=(16, 10))
-
-        progress_header = ctk.CTkLabel(
-            progress_header_row,
-            text="Live progress",
-            font=self.ui_font(15, "bold", role="body"),
-            text_color=THEME["text"],
-        )
-        progress_header.pack(side="left")
-
-        self.live_progress_accent = ctk.CTkFrame(
-            progress_header_row,
-            height=5,
-            fg_color=THEME["blue"],
-            corner_radius=3,
-            width=120,
-        )
+        ctk.CTkLabel(progress_header_row, text="Live progress", font=self.ui_font(15, "bold", role="body"), text_color=THEME["text"]).pack(side="left")
+        self.live_progress_accent = ctk.CTkFrame(progress_header_row, height=5, fg_color=THEME["blue"], corner_radius=3, width=120)
         self.live_progress_accent.pack(side="right", pady=(5, 0))
         self.live_progress_accent.pack_propagate(False)
-
         progress_metrics_grid = ctk.CTkFrame(progress_frame, fg_color="transparent")
         progress_metrics_grid.pack(fill="x", padx=18, pady=(0, 16))
         progress_metrics_grid.grid_columnconfigure((0, 1), weight=1, uniform="progress")
 
-        status_card = self.build_status_card(
-            right,
-            self.macro_status_var,
-            self.macro_detail_var,
-            wraplength=330,
-        )
+        status_card = self.build_status_card(right, self.macro_status_var, self.macro_detail_var, wraplength=330)
         status_card.pack(fill="x", pady=(0, 10))
 
         stats_section = self.build_section_frame(right)
         stats_section.pack(fill="x", pady=(0, 10))
-
-        ctk.CTkLabel(
-            stats_section,
-            text="Run statistics",
-            font=self.ui_font(15, "bold", role="body"),
-            text_color=THEME["text"],
-        ).pack(anchor="w", padx=18, pady=(16, 8))
-
+        ctk.CTkLabel(stats_section, text="Run statistics", font=self.ui_font(15, "bold", role="body"), text_color=THEME["text"]).pack(anchor="w", padx=18, pady=(16, 8))
         self.profile_stats_var = ctk.StringVar(value="")
         ctk.CTkLabel(
-            stats_section,
-            textvariable=self.profile_stats_var,
-            font=self.ui_font(13, role="body"),
-            text_color=THEME["muted"],
-            justify="left",
-            anchor="w",
-            wraplength=330,
+            stats_section, textvariable=self.profile_stats_var, font=self.ui_font(13, role="body"),
+            text_color=THEME["muted"], justify="left", anchor="w", wraplength=330,
         ).pack(anchor="w", padx=18, pady=(0, 16))
 
         notes_section = self.build_section_frame(right)
         notes_section.pack(fill="x", pady=(0, 10))
-
-        ctk.CTkLabel(
-            notes_section,
-            text="Profile notes",
-            font=self.ui_font(15, "bold", role="body"),
-            text_color=THEME["text"],
-        ).pack(anchor="w", padx=18, pady=(16, 8))
-
+        ctk.CTkLabel(notes_section, text="Profile notes", font=self.ui_font(15, "bold", role="body"), text_color=THEME["text"]).pack(anchor="w", padx=18, pady=(16, 8))
         self.profile_notes_text = ctk.CTkTextbox(
-            notes_section,
-            height=84,
-            corner_radius=14,
-            border_width=1,
-            border_color=THEME["border"],
-            fg_color=THEME["field"],
-            text_color=THEME["text"],
-            font=self.ui_font(13, role="body"),
-            wrap="word",
+            notes_section, height=84, corner_radius=14, border_width=1, border_color=THEME["border"],
+            fg_color=THEME["field"], text_color=THEME["text"], font=self.ui_font(13, role="body"), wrap="word",
         )
         self.profile_notes_text.pack(fill="x", padx=18, pady=(0, 16))
 
         steps_frame = self.build_section_frame(shell)
         steps_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 12))
-
         header = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
         header.pack(fill="x", padx=18, pady=(14, 8))
-
         header.grid_columnconfigure(0, weight=0)
         header.grid_columnconfigure(1, weight=2)
         header.grid_columnconfigure(2, weight=1)
@@ -2049,134 +1939,38 @@ class KeyHoldApp:
 
         step_actions = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
         step_actions.pack(fill="x", padx=18, pady=(8, 16))
-
-        self.add_step_button = ctk.CTkButton(
-            step_actions,
-            text="Add Step",
-            height=38,
-            corner_radius=12,
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.add_macro_step,
-        )
+        self.add_step_button = ctk.CTkButton(step_actions, text="Add Step", height=38, corner_radius=12, fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"], font=self.ui_font(13, "bold", role="body"), command=self.add_macro_step)
         self.add_step_button.pack(side="left")
-
-        self.record_macro_button = ctk.CTkButton(
-            step_actions,
-            text="Start Recorder",
-            height=38,
-            corner_radius=12,
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.toggle_macro_recorder,
-        )
+        self.record_macro_button = ctk.CTkButton(step_actions, text="Start Recorder", height=38, corner_radius=12, fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"], font=self.ui_font(13, "bold", role="body"), command=self.toggle_macro_recorder)
         self.record_macro_button.pack(side="left", padx=(10, 0))
-
-        self.clear_steps_button = ctk.CTkButton(
-            step_actions,
-            text="Clear Steps",
-            height=38,
-            corner_radius=12,
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"),
-            command=self.clear_macro_steps,
-        )
+        self.clear_steps_button = ctk.CTkButton(step_actions, text="Clear Steps", height=38, corner_radius=12, fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"], font=self.ui_font(13, "bold", role="body"), command=self.clear_macro_steps)
         self.clear_steps_button.pack(side="left", padx=(10, 0))
-
-        recorder_hint = ctk.CTkLabel(
+        ctk.CTkLabel(
             steps_frame,
             text="Recorder keys: A, B, X, Y, Q=LB, E=RB, 1=BACK, 2=START, arrows=DPAD. Start recorder, play the sequence on the keyboard, then stop recorder to replace the steps.",
-            font=self.ui_font(12, role="body"),
-            text_color=THEME["muted"],
-            wraplength=1040,
-            justify="left",
-        )
-        recorder_hint.pack(anchor="w", padx=18, pady=(0, 16))
+            font=self.ui_font(12, role="body"), text_color=THEME["muted"], wraplength=1040, justify="left",
+        ).pack(anchor="w", padx=18, pady=(0, 16))
 
-        for index, variable in enumerate((
-            self.macro_current_step_var,
-            self.macro_last_action_var,
-            self.macro_next_action_var,
-            self.macro_loop_var,
-        )):
+        for index, variable in enumerate((self.macro_current_step_var, self.macro_last_action_var, self.macro_next_action_var, self.macro_loop_var)):
             metric = ctk.CTkLabel(
-                progress_metrics_grid,
-                textvariable=variable,
-                height=40,
-                corner_radius=12,
-                fg_color=THEME["field"],
-                font=self.ui_font(12, role="body"),
-                text_color="#c6d2e5",
-                anchor="w",
-                justify="left",
-                wraplength=170,
+                progress_metrics_grid, textvariable=variable, height=40, corner_radius=12, fg_color=THEME["field"],
+                font=self.ui_font(12, role="body"), text_color="#c6d2e5", anchor="w", justify="left", wraplength=170,
             )
-            metric.grid(
-                row=index // 2,
-                column=index % 2,
-                sticky="ew",
-                padx=5,
-                pady=5,
-            )
+            metric.grid(row=index // 2, column=index % 2, sticky="ew", padx=5, pady=5)
 
         actions = ctk.CTkFrame(shell, fg_color="transparent")
         actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 8))
-
-        apply_button = GradientButton(
-            actions,
-            text="Apply Macro",
-            command=self.apply_macro_mapping,
-            colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
-            hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
-            width=214,
-            height=50,
-        )
-        apply_button.pack(side="left")
-
-        start_button = GradientButton(
-            actions,
-            text="Start Macro",
-            command=self.start_macro,
-            colors=(THEME["green_deep"], THEME["green"]),
-            hover_colors=("#15803d", "#22c55e"),
-            width=214,
-            height=50,
-        )
-        start_button.pack(side="left", padx=(12, 0))
-
-        stop_button = ctk.CTkButton(
-            actions,
-            text="Stop Macro",
-            height=46,
-            corner_radius=16,
-            fg_color=THEME["field"],
-            hover_color=THEME["field_hover"],
-            border_color=THEME["border"],
-            border_width=1,
-            text_color="#dce7f8",
-            font=self.ui_font(15, "bold", role="body"),
-            command=self.stop_macro,
-        )
-        stop_button.pack(side="left", padx=(12, 0))
-
-        driver_note = ctk.CTkLabel(
+        GradientButton(actions, text="Apply Macro", command=self.apply_macro_mapping, colors=(THEME["blue"], THEME["amber"], THEME["cyan"]), hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]), width=214, height=50).pack(side="left")
+        GradientButton(actions, text="Start Macro", command=self.start_macro, colors=(THEME["green_deep"], THEME["green"]), hover_colors=("#15803d", "#22c55e"), width=214, height=50).pack(side="left", padx=(12, 0))
+        ctk.CTkButton(
+            actions, text="Stop Macro", height=46, corner_radius=16, fg_color=THEME["field"], hover_color=THEME["field_hover"],
+            border_color=THEME["border"], border_width=1, text_color="#dce7f8", font=self.ui_font(15, "bold", role="body"), command=self.stop_macro,
+        ).pack(side="left", padx=(12, 0))
+        ctk.CTkLabel(
             shell,
-            text=(
-                "This tab uses a virtual Xbox 360 controller. "
-                "If it does not start, install the ViGEmBus driver when prompted by vgamepad."
-            ),
-            font=self.ui_font(12, role="body"),
-            text_color=THEME["faint"],
-            wraplength=980,
-            justify="left",
-        )
-        driver_note.grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
+            text="This tab uses a virtual Xbox 360 controller. If it does not start, install the ViGEmBus driver when prompted by vgamepad.",
+            font=self.ui_font(12, role="body"), text_color=THEME["faint"], wraplength=980, justify="left",
+        ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
 
         self.macro_status_badge = status_card.badge
         self.profile_editor_ready = True
@@ -3184,7 +2978,6 @@ class KeyHoldApp:
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
-        self.initialize_runtime_hooks()
         if self.startup_splash is not None:
             try:
                 self.startup_splash.attributes("-topmost", False)
@@ -3192,8 +2985,32 @@ class KeyHoldApp:
                 pass
             self.startup_splash.destroy()
             self.startup_splash = None
+        if self.post_paint_startup_after_id is not None:
+            self.root.after_cancel(self.post_paint_startup_after_id)
+        self.post_paint_startup_after_id = self.root.after(45, self.run_post_paint_startup_tasks)
         self.root.after(60, self.ensure_window_opaque)
         self.root.after(220, self.ensure_window_opaque)
+
+    def run_post_paint_startup_tasks(self) -> None:
+        self.post_paint_startup_after_id = None
+        if not self.root.winfo_exists():
+            return
+        self.render_app_background()
+        self.initialize_runtime_hooks()
+        self.schedule_settings_prewarm()
+        self.schedule_auto_update_check()
+
+    def schedule_settings_prewarm(self) -> None:
+        if self.settings_view_built or self.settings_prewarm_after_id is not None:
+            return
+        delay_ms = 3600 if self.performance_mode else 2600
+        self.settings_prewarm_after_id = self.root.after(delay_ms, self.prewarm_secondary_views)
+
+    def schedule_auto_update_check(self) -> None:
+        if self.auto_update_check_after_id is not None:
+            self.root.after_cancel(self.auto_update_check_after_id)
+        delay_ms = 3200 if self.performance_mode else 2400
+        self.auto_update_check_after_id = self.root.after(delay_ms, self.auto_check_for_updates)
 
     def initialize_runtime_hooks(self) -> None:
         if self.runtime_hooks_initialized:
@@ -4537,6 +4354,7 @@ class KeyHoldApp:
         threading.Thread(target=self.run_update_check, daemon=True).start()
 
     def auto_check_for_updates(self) -> None:
+        self.auto_update_check_after_id = None
         if not self.update_check_in_progress:
             self.check_for_updates()
 

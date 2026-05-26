@@ -1,9 +1,9 @@
 {
-  "version": "1.3.29",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.29/InputLabSetup.exe",
+  "version": "1.3.30",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.30/InputLabSetup.exe",
   "notes": [
-    "Controller Macro now reuses macro step row widgets instead of destroying and rebuilding them on every profile load.",
-    "Profile tab refresh work was reduced by removing layout-width probing and heavy tab reconstruction churn.",
-    "Macro editor initialization is deferred so the module shell can paint first, with the heavier editor population filling in immediately after."
+    "Startup now defers background rendering, runtime hooks, update checks, and hidden-module prewarm work until after the first window paint.",
+    "Controller Macro internals remain lazy-built and the startup path keeps Keyboard Hold as the cheapest first view.",
+    "First visible window time improved by removing more noncritical work from the initial construction path."
   ]
 }
