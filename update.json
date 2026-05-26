@@ -1,5 +1,9 @@
 {
-  "version": "1.3.27",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.27/InputLabSetup.exe",
-  "notes": "Performance pass for the current Python desktop stack: hotkey-triggered work now enters through the Tk main thread, macro progress no longer schedules UI callbacks from worker threads, and high-performance background rendering uses a cheaper scale and lighter blur passes."
+  "version": "1.3.28",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.28/InputLabSetup.exe",
+  "notes": [
+    "Performance mode is now a real toggle in Settings and disables heavier background and glow work when enabled.",
+    "Background rendering now uses cached master images and resized cached outputs instead of rebuilding the full glow field on common resizes.",
+    "Secondary tabs are deferred and prewarmed after startup, while tab switching now uses a stacked view container for faster desktop response."
+  ]
 }

@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.27"
+APP_VERSION = "1.3.28"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -54,6 +54,10 @@ ENABLE_BACKGROUND_ANIMATION = not HIGH_PERFORMANCE_UI
 BACKGROUND_RENDER_SCALE = 0.42 if HIGH_PERFORMANCE_UI else 1.0
 BACKGROUND_RERENDER_THRESHOLD = 180 if HIGH_PERFORMANCE_UI else 40
 MACRO_PROGRESS_INTERVAL = 0.1 if HIGH_PERFORMANCE_UI else 0.05
+PERFORMANCE_MODE_MACRO_PROGRESS_INTERVAL = 0.12
+STANDARD_MODE_MACRO_PROGRESS_INTERVAL = 0.08
+BACKGROUND_CACHE_LIMIT = 8
+BACKGROUND_MASTER_CACHE_LIMIT = 6
 THEME_PRESETS = {
     "Website Match": {
         "app_bg": "#0c0d0d",
@@ -620,6 +624,7 @@ DEFAULT_CONFIG = {
     "toggle_hotkey": "f2",
     "target_key": "w",
     "theme_name": DEFAULT_THEME_NAME,
+    "performance_mode": True,
     "overlay_enabled": False,
     "close_to_tray": True,
     "minimize_to_tray": True,
@@ -667,6 +672,7 @@ class KeyHoldApp:
         self.toggle_hotkey = self.config["toggle_hotkey"]
         self.target_key = self.config["target_key"]
         self.update_manifest_url = DEFAULT_UPDATE_MANIFEST_URL
+        self.performance_mode = self.config["performance_mode"]
         self.overlay_enabled = self.config["overlay_enabled"]
         self.close_to_tray = self.config["close_to_tray"]
         self.minimize_to_tray = self.config["minimize_to_tray"]
@@ -723,7 +729,7 @@ class KeyHoldApp:
         self.macro_progress_poll_after_id = None
         self.macro_progress_lock = threading.Lock()
         self.macro_progress_pending = {}
-        self.macro_progress_min_interval = MACRO_PROGRESS_INTERVAL
+        self.macro_progress_min_interval = self.get_macro_progress_interval()
         self.macro_progress_next_due = 0.0
         self.macro_completion_pending = False
         self.tray_icon = None
@@ -738,14 +744,13 @@ class KeyHoldApp:
         self.recorder_steps = []
         self.recorder_last_release_at = None
         self.content_shell_width = 0
+        self.background_master_cache = {}
+        self.runtime_hooks_initialized = False
 
         self.build_ui()
         if ENABLE_BACKGROUND_ANIMATION:
             self.start_background_animation()
         self.root.after(0, self.show_centered_window)
-        self.register_key_hold_hotkey(self.toggle_hotkey)
-        self.register_macro_hotkeys()
-        self.start_macro_progress_poller()
         self.root.after(1200, self.auto_check_for_updates)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -800,6 +805,7 @@ class KeyHoldApp:
         config["toggle_hotkey"] = str(raw_data.get("toggle_hotkey", config["toggle_hotkey"])).lower()
         config["target_key"] = str(raw_data.get("target_key", config["target_key"])).lower()
         config["theme_name"] = str(raw_data.get("theme_name", config["theme_name"])).strip() or config["theme_name"]
+        config["performance_mode"] = bool(raw_data.get("performance_mode", config["performance_mode"]))
         config["overlay_enabled"] = bool(raw_data.get("overlay_enabled", config["overlay_enabled"]))
         config["close_to_tray"] = bool(raw_data.get("close_to_tray", config["close_to_tray"]))
         config["minimize_to_tray"] = bool(raw_data.get("minimize_to_tray", config["minimize_to_tray"]))
@@ -848,6 +854,7 @@ class KeyHoldApp:
             "toggle_hotkey": self.toggle_hotkey,
             "target_key": self.target_key,
             "theme_name": self.theme_name,
+            "performance_mode": self.performance_mode,
             "overlay_enabled": self.overlay_enabled,
             "close_to_tray": self.close_to_tray,
             "minimize_to_tray": self.minimize_to_tray,
@@ -899,6 +906,8 @@ class KeyHoldApp:
 
             if hasattr(self, "overlay_enabled_var"):
                 self.overlay_enabled = bool(self.overlay_enabled_var.get())
+            if hasattr(self, "performance_mode_var"):
+                self.performance_mode = bool(self.performance_mode_var.get())
             if hasattr(self, "close_to_tray_var"):
                 self.close_to_tray = bool(self.close_to_tray_var.get())
             if hasattr(self, "minimize_to_tray_var"):
@@ -911,6 +920,16 @@ class KeyHoldApp:
         THEME.clear()
         THEME.update(selected_theme)
         self.theme_name = theme_name if theme_name in THEME_PRESETS else DEFAULT_THEME_NAME
+
+    def get_macro_progress_interval(self) -> float:
+        return PERFORMANCE_MODE_MACRO_PROGRESS_INTERVAL if self.performance_mode else STANDARD_MODE_MACRO_PROGRESS_INTERVAL
+
+    @staticmethod
+    def cache_put(cache: dict, key, value, max_entries: int) -> None:
+        cache[key] = value
+        while len(cache) > max_entries:
+            oldest_key = next(iter(cache))
+            cache.pop(oldest_key, None)
 
     def normalize_macro_steps(self, raw_steps) -> list[dict]:
         normalized_steps = []
@@ -1268,9 +1287,20 @@ class KeyHoldApp:
         self.workspace_accent.pack(fill="x", padx=24, pady=(18, 0))
         self.draw_gradient_strip(self.workspace_accent, 3)
 
-        self.keyboard_view = ctk.CTkFrame(self.content_shell, fg_color=THEME["panel_low"])
-        self.macro_view = ctk.CTkFrame(self.content_shell, fg_color=THEME["panel_low"])
-        self.settings_view = ctk.CTkFrame(self.content_shell, fg_color=THEME["panel_low"])
+        self.view_stack = ctk.CTkFrame(self.content_shell, fg_color="transparent")
+        self.view_stack.pack(fill="both", expand=True)
+        self.view_stack.grid_rowconfigure(0, weight=1)
+        self.view_stack.grid_columnconfigure(0, weight=1)
+
+        self.keyboard_view_built = False
+        self.macro_view_built = False
+        self.settings_view_built = False
+        self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
+        self.macro_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
+        self.settings_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
+        self.keyboard_view.grid(row=0, column=0, sticky="nsew")
+        self.macro_view.grid(row=0, column=0, sticky="nsew")
+        self.settings_view.grid(row=0, column=0, sticky="nsew")
         self.section_transition_overlay = ctk.CTkFrame(
             self.content_shell,
             fg_color=THEME["shell"],
@@ -1313,14 +1343,46 @@ class KeyHoldApp:
 
         self.update_startup_status("Loading sections...")
         self.build_keyboard_tab(self.keyboard_view)
-        self.build_macro_tab(self.macro_view)
-        self.build_settings_tab(self.settings_view)
+        self.keyboard_view_built = True
+        if target_view == "macro":
+            self.build_macro_tab(self.macro_view)
+            self.macro_view_built = True
+        elif target_view == "settings":
+            self.build_settings_tab(self.settings_view)
+            self.settings_view_built = True
         self.current_view = ""
         self.show_view(target_view, instant=True)
+        self.root.after(120, self.prewarm_secondary_views)
         self.update_activity_indicators()
 
     def on_body_scroll_frame_configure(self, _event=None) -> None:
         self.body_canvas.configure(scrollregion=self.body_canvas.bbox("all"))
+
+    def ensure_view_built(self, view_name: str) -> None:
+        if view_name == "keyboard":
+            if not self.keyboard_view_built:
+                self.build_keyboard_tab(self.keyboard_view)
+                self.keyboard_view_built = True
+        elif view_name == "macro":
+            if not self.macro_view_built:
+                self.build_macro_tab(self.macro_view)
+                self.macro_view_built = True
+        elif view_name == "settings":
+            if not self.settings_view_built:
+                self.build_settings_tab(self.settings_view)
+                self.settings_view_built = True
+
+    def prewarm_secondary_views(self) -> None:
+        if not self.root.winfo_exists():
+            return
+        if not self.macro_view_built:
+            self.build_macro_tab(self.macro_view)
+            self.macro_view_built = True
+            self.root.after(80, self.prewarm_secondary_views)
+            return
+        if not self.settings_view_built:
+            self.build_settings_tab(self.settings_view)
+            self.settings_view_built = True
 
     def on_body_canvas_configure(self, event) -> None:
         if event.width != self.body_canvas_last_width:
@@ -1460,7 +1522,8 @@ class KeyHoldApp:
         if self.current_view == view_name:
             return
 
-        if instant or not hasattr(self, "section_transition_overlay"):
+        self.ensure_view_built(view_name)
+        if instant or self.performance_mode or not hasattr(self, "section_transition_overlay"):
             self.apply_view_switch(view_name)
             return
 
@@ -1469,22 +1532,18 @@ class KeyHoldApp:
     def apply_view_switch(self, view_name: str) -> None:
         self.current_view = view_name
 
-        self.keyboard_view.pack_forget()
-        self.macro_view.pack_forget()
-        self.settings_view.pack_forget()
-
         if view_name == "keyboard":
-            self.keyboard_view.pack(fill="both", expand=True)
+            self.keyboard_view.tkraise()
             self.set_nav_button_state(self.keyboard_nav_active_button, self.keyboard_nav_button, True)
             self.set_nav_button_state(self.macro_nav_active_button, self.macro_nav_button, False)
             self.set_nav_button_state(self.settings_nav_active_button, self.settings_nav_button, False)
         elif view_name == "macro":
-            self.macro_view.pack(fill="both", expand=True)
+            self.macro_view.tkraise()
             self.set_nav_button_state(self.macro_nav_active_button, self.macro_nav_button, True)
             self.set_nav_button_state(self.keyboard_nav_active_button, self.keyboard_nav_button, False)
             self.set_nav_button_state(self.settings_nav_active_button, self.settings_nav_button, False)
         else:
-            self.settings_view.pack(fill="both", expand=True)
+            self.settings_view.tkraise()
             self.set_nav_button_state(self.settings_nav_active_button, self.settings_nav_button, True)
             self.set_nav_button_state(self.keyboard_nav_active_button, self.keyboard_nav_button, False)
             self.set_nav_button_state(self.macro_nav_active_button, self.macro_nav_button, False)
@@ -1494,6 +1553,9 @@ class KeyHoldApp:
             self.animate_view_switch()
 
     def start_section_transition(self, view_name: str) -> None:
+        if self.performance_mode:
+            self.apply_view_switch(view_name)
+            return
         for after_id in self.section_transition_after_ids:
             self.root.after_cancel(after_id)
         self.section_transition_after_ids = []
@@ -2157,10 +2219,12 @@ class KeyHoldApp:
         ).pack(anchor="w", padx=18, pady=(16, 10))
 
         self.overlay_enabled_var = ctk.BooleanVar(value=self.overlay_enabled)
+        self.performance_mode_var = ctk.BooleanVar(value=self.performance_mode)
         self.close_to_tray_var = ctk.BooleanVar(value=self.close_to_tray)
         self.minimize_to_tray_var = ctk.BooleanVar(value=self.minimize_to_tray)
 
         for label_text, variable, command in (
+            ("Performance mode (reduce blur, glow, and background work)", self.performance_mode_var, self.on_performance_mode_changed),
             ("Enable always-on-top overlay", self.overlay_enabled_var, self.on_overlay_toggle_changed),
             ("Close to system tray instead of exiting", self.close_to_tray_var, self.on_tray_setting_changed),
             ("Minimize to system tray", self.minimize_to_tray_var, self.on_tray_setting_changed),
@@ -2853,11 +2917,124 @@ class KeyHoldApp:
         family = DISPLAY_FONT_FAMILY if role == "display" else BODY_FONT_FAMILY
         return (family, size, weight)
 
+    def current_background_phase_bucket(self) -> float:
+        if self.performance_mode or not ENABLE_BACKGROUND_ANIMATION:
+            return 0.0
+        return round(self.background_animation_phase, 1)
+
+    def build_background_master(self, theme_signature: tuple, phase_bucket: float) -> Image.Image:
+        cache_key = (theme_signature, phase_bucket, self.performance_mode)
+        cached_master = self.background_master_cache.get(cache_key)
+        if cached_master is not None:
+            return cached_master
+
+        if self.performance_mode:
+            render_width, render_height = 960, 540
+            blur_top_left = 34
+            blur_bottom_right = 36
+            blur_center = 24
+            blur_vignette = 16
+            warm_alpha = 72
+            amber_alpha = 32
+            cool_alpha = 74
+            green_alpha = 36
+        else:
+            render_width, render_height = 1440, 900
+            blur_top_left = 56 if HIGH_PERFORMANCE_UI else 160
+            blur_bottom_right = 60 if HIGH_PERFORMANCE_UI else 170
+            blur_center = 44 if HIGH_PERFORMANCE_UI else 130
+            blur_vignette = 32 if HIGH_PERFORMANCE_UI else 90
+            warm_alpha = 88
+            amber_alpha = 42
+            cool_alpha = 86
+            green_alpha = 46
+
+        phase = phase_bucket
+        warm_shift_x = int(math.sin(phase) * 34)
+        warm_shift_y = int(math.cos(phase * 0.82) * 24)
+        cool_shift_x = int(math.cos(phase * 0.74) * 38)
+        cool_shift_y = int(math.sin(phase * 0.67) * 26)
+
+        def px(value: float) -> int:
+            return int(render_width * value)
+
+        def py(value: float) -> int:
+            return int(render_height * value)
+
+        base = Image.new("RGBA", (render_width, render_height), (12, 13, 13, 255))
+
+        top_left = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
+        top_left_draw = ImageDraw.Draw(top_left)
+        top_left_draw.ellipse(
+            (
+                px(-0.22) + warm_shift_x,
+                py(-0.18) + warm_shift_y,
+                px(0.52) + warm_shift_x,
+                py(0.92) + warm_shift_y,
+            ),
+            fill=(225, 140, 77, warm_alpha),
+        )
+        top_left_draw.ellipse(
+            (
+                px(0.08) - warm_shift_x,
+                py(0.10),
+                px(0.78) - warm_shift_x,
+                py(0.88),
+            ),
+            fill=(215, 219, 87, amber_alpha),
+        )
+        top_left = top_left.filter(ImageFilter.GaussianBlur(blur_top_left))
+
+        bottom_right = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
+        bottom_right_draw = ImageDraw.Draw(bottom_right)
+        bottom_right_draw.ellipse(
+            (
+                px(0.56) + cool_shift_x,
+                py(0.56) + cool_shift_y,
+                px(1.16) + cool_shift_x,
+                py(1.16) + cool_shift_y,
+            ),
+            fill=(76, 167, 230, cool_alpha),
+        )
+        bottom_right_draw.ellipse(
+            (
+                px(0.34) - cool_shift_x,
+                py(0.28) - cool_shift_y,
+                px(1.08) - cool_shift_x,
+                py(1.02) - cool_shift_y,
+            ),
+            fill=(79, 195, 156, green_alpha),
+        )
+        bottom_right = bottom_right.filter(ImageFilter.GaussianBlur(blur_bottom_right))
+
+        center_shadow = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
+        center_shadow_draw = ImageDraw.Draw(center_shadow)
+        center_shadow_draw.ellipse(
+            (px(0.12), py(0.08), px(0.92), py(0.96)),
+            fill=(8, 10, 10, 70),
+        )
+        center_shadow = center_shadow.filter(ImageFilter.GaussianBlur(blur_center))
+
+        vignette = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
+        vignette_draw = ImageDraw.Draw(vignette)
+        vignette_draw.rectangle((0, 0, render_width, render_height), fill=(0, 0, 0, 32))
+        vignette = vignette.filter(ImageFilter.GaussianBlur(blur_vignette))
+
+        base.alpha_composite(top_left)
+        base.alpha_composite(bottom_right)
+        base.alpha_composite(center_shadow)
+        base.alpha_composite(vignette)
+
+        self.cache_put(self.background_master_cache, cache_key, base, BACKGROUND_MASTER_CACHE_LIMIT)
+        return base
+
     def render_app_background(self) -> None:
         width = max(self.root.winfo_width(), 1600)
         height = max(self.root.winfo_height(), 960)
         self.last_background_size = (width, height)
-        cache_key = (width, height, tuple(THEME.items()), round(self.background_animation_phase, 2), HIGH_PERFORMANCE_UI)
+        theme_signature = tuple(THEME.items())
+        phase_bucket = self.current_background_phase_bucket()
+        cache_key = (width, height, theme_signature, phase_bucket, self.performance_mode)
         cached_photo = self.background_cache.get(cache_key)
         if cached_photo is not None:
             self.background_photo = cached_photo
@@ -2877,92 +3054,12 @@ class KeyHoldApp:
                 self.background_label.lower()
             return
 
-        render_scale = BACKGROUND_RENDER_SCALE
-        render_width = max(int(width * render_scale), 800 if HIGH_PERFORMANCE_UI else width)
-        render_height = max(int(height * render_scale), 480 if HIGH_PERFORMANCE_UI else height)
-        scale_x = render_width / width
-        scale_y = render_height / height
-
-        def sx(value: float) -> int:
-            return int(value * scale_x)
-
-        def sy(value: float) -> int:
-            return int(value * scale_y)
-
-        phase = self.background_animation_phase
-        warm_shift_x = int(math.sin(phase) * 34)
-        warm_shift_y = int(math.cos(phase * 0.82) * 24)
-        cool_shift_x = int(math.cos(phase * 0.74) * 38)
-        cool_shift_y = int(math.sin(phase * 0.67) * 26)
-        base = Image.new("RGBA", (render_width, render_height), (12, 13, 13, 255))
-
-        top_left = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
-        top_left_draw = ImageDraw.Draw(top_left)
-        top_left_draw.ellipse(
-            (
-                sx(-320 + warm_shift_x),
-                sy(-180 + warm_shift_y),
-                sx(width * 0.52 + warm_shift_x),
-                sy(height * 0.92 + warm_shift_y),
-            ),
-            fill=(225, 140, 77, 88),
-        )
-        top_left_draw.ellipse(
-            (
-                sx(width * 0.08 - warm_shift_x),
-                sy(height * 0.10),
-                sx(width * 0.78 - warm_shift_x),
-                sy(height * 0.88),
-            ),
-            fill=(215, 219, 87, 42),
-        )
-        top_left = top_left.filter(ImageFilter.GaussianBlur(56 if HIGH_PERFORMANCE_UI else 160))
-
-        bottom_right = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
-        bottom_right_draw = ImageDraw.Draw(bottom_right)
-        bottom_right_draw.ellipse(
-            (
-                sx(width * 0.56 + cool_shift_x),
-                sy(height * 0.56 + cool_shift_y),
-                sx(width + 260 + cool_shift_x),
-                sy(height + 260 + cool_shift_y),
-            ),
-            fill=(76, 167, 230, 86),
-        )
-        bottom_right_draw.ellipse(
-            (
-                sx(width * 0.34 - cool_shift_x),
-                sy(height * 0.28 - cool_shift_y),
-                sx(width + 120 - cool_shift_x),
-                sy(height * 1.02 - cool_shift_y),
-            ),
-            fill=(79, 195, 156, 46),
-        )
-        bottom_right = bottom_right.filter(ImageFilter.GaussianBlur(60 if HIGH_PERFORMANCE_UI else 170))
-
-        center_shadow = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
-        center_shadow_draw = ImageDraw.Draw(center_shadow)
-        center_shadow_draw.ellipse(
-            (sx(width * 0.12), sy(height * 0.08), sx(width * 0.92), sy(height * 0.96)),
-            fill=(8, 10, 10, 70),
-        )
-        center_shadow = center_shadow.filter(ImageFilter.GaussianBlur(44 if HIGH_PERFORMANCE_UI else 130))
-
-        vignette = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
-        vignette_draw = ImageDraw.Draw(vignette)
-        vignette_draw.rectangle((0, 0, render_width, render_height), fill=(0, 0, 0, 32))
-        vignette = vignette.filter(ImageFilter.GaussianBlur(32 if HIGH_PERFORMANCE_UI else 90))
-
-        base.alpha_composite(top_left)
-        base.alpha_composite(bottom_right)
-        base.alpha_composite(center_shadow)
-        base.alpha_composite(vignette)
-
-        if HIGH_PERFORMANCE_UI and (render_width != width or render_height != height):
-            base = base.resize((width, height), Image.Resampling.BICUBIC)
-
+        base = self.build_background_master(theme_signature, phase_bucket)
+        if base.size != (width, height):
+            resample = Image.Resampling.BILINEAR if self.performance_mode else Image.Resampling.BICUBIC
+            base = base.resize((width, height), resample)
         self.background_photo = ImageTk.PhotoImage(base)
-        self.background_cache = {cache_key: self.background_photo}
+        self.cache_put(self.background_cache, cache_key, self.background_photo, BACKGROUND_CACHE_LIMIT)
         if self.background_label is None:
             self.background_label = tk.Label(
                 self.root,
@@ -2990,12 +3087,13 @@ class KeyHoldApp:
         width = self.root.winfo_width()
         height = self.root.winfo_height()
         last_width, last_height = self.last_background_size
-        if abs(width - last_width) < BACKGROUND_RERENDER_THRESHOLD and abs(height - last_height) < BACKGROUND_RERENDER_THRESHOLD:
+        rerender_threshold = 260 if self.performance_mode else BACKGROUND_RERENDER_THRESHOLD
+        if abs(width - last_width) < rerender_threshold and abs(height - last_height) < rerender_threshold:
             return
         self.render_app_background()
 
     def start_background_animation(self) -> None:
-        if not ENABLE_BACKGROUND_ANIMATION:
+        if not ENABLE_BACKGROUND_ANIMATION or self.performance_mode:
             return
         if self.background_animation_after_id is not None:
             self.root.after_cancel(self.background_animation_after_id)
@@ -3050,6 +3148,7 @@ class KeyHoldApp:
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
+        self.initialize_runtime_hooks()
         if self.startup_splash is not None:
             try:
                 self.startup_splash.attributes("-topmost", False)
@@ -3059,6 +3158,14 @@ class KeyHoldApp:
             self.startup_splash = None
         self.root.after(60, self.ensure_window_opaque)
         self.root.after(220, self.ensure_window_opaque)
+
+    def initialize_runtime_hooks(self) -> None:
+        if self.runtime_hooks_initialized:
+            return
+        self.runtime_hooks_initialized = True
+        self.register_key_hold_hotkey(self.toggle_hotkey)
+        self.register_macro_hotkeys()
+        self.start_macro_progress_poller()
 
     def ensure_window_opaque(self) -> None:
         try:
@@ -3090,7 +3197,8 @@ class KeyHoldApp:
             return
         self.schedule_window_opaque_reset()
         if self.current_view:
-            self.schedule_background_rerender(150 if HIGH_PERFORMANCE_UI else 90)
+            delay_ms = 240 if self.performance_mode else (150 if HIGH_PERFORMANCE_UI else 90)
+            self.schedule_background_rerender(delay_ms)
 
     def on_root_map(self, _event=None) -> None:
         self.schedule_window_opaque_reset(20)
@@ -3446,6 +3554,22 @@ class KeyHoldApp:
             self.enable_overlay_window(force_rebuild=True)
         else:
             self.disable_overlay_window()
+
+    def on_performance_mode_changed(self) -> None:
+        self.performance_mode = bool(self.performance_mode_var.get())
+        self.macro_progress_min_interval = self.get_macro_progress_interval()
+        self.background_cache.clear()
+        self.background_master_cache.clear()
+        if self.background_render_after_id is not None:
+            self.root.after_cancel(self.background_render_after_id)
+            self.background_render_after_id = None
+        if self.background_animation_after_id is not None:
+            self.root.after_cancel(self.background_animation_after_id)
+            self.background_animation_after_id = None
+        self.render_app_background()
+        if ENABLE_BACKGROUND_ANIMATION and not self.performance_mode:
+            self.start_background_animation()
+        self.save_config()
 
     def on_tray_setting_changed(self) -> None:
         self.close_to_tray = bool(self.close_to_tray_var.get())
@@ -4175,9 +4299,10 @@ class KeyHoldApp:
     def sleep_with_cancel(self, seconds: float, phase: str | None = None, button_name: str | None = None) -> None:
         end_time = time.perf_counter() + seconds
         last_bucket = None
+        bucket_ms = max(100, int(self.macro_progress_min_interval * 1000))
         while self.macro_running.is_set() and time.perf_counter() < end_time:
             remaining_ms = max(0, int((end_time - time.perf_counter()) * 1000))
-            bucket = remaining_ms // 50
+            bucket = remaining_ms // bucket_ms
             if bucket == last_bucket:
                 time.sleep(0.01)
                 continue
