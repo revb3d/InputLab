@@ -1,9 +1,9 @@
 {
-  "version": "1.3.35",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.35/InputLabSetup.exe",
+  "version": "1.3.36",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.36/InputLabSetup.exe",
   "notes": [
-    "Adjusted the flat outer scroll-shell base color to use a softer dark shell tone instead of the near-black blend that was still reading as a hard slab around the app content.",
+    "Fixed the root cause of the hard dark outer slab by stopping the scroll-region frame from spanning the full canvas width; the centered content region now occupies only its intended width so the outer background can show through.",
     "Kept layout and controls unchanged.",
-    "Preserved the prior shell wrapper transparency fixes from v1.3.34."
+    "Preserved prior shell/background fixes from v1.3.35."
   ]
 }

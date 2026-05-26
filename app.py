@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.35"
+APP_VERSION = "1.3.36"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -1270,11 +1270,11 @@ class KeyHoldApp:
     def on_body_canvas_configure(self, event) -> None:
         if event.width != self.body_canvas_last_width:
             self.body_canvas_last_width = event.width
-            self.body_canvas.itemconfigure(self.body_canvas_window, width=event.width)
             if hasattr(self, "page_shell"):
                 shell_width = min(max(int(event.width * 0.85), 1120), 1680)
                 side_padding = max((event.width - shell_width) // 2, 0)
-                self.page_shell.pack_configure(padx=side_padding)
+                self.body_canvas.coords(self.body_canvas_window, side_padding, 0)
+                self.body_canvas.itemconfigure(self.body_canvas_window, width=shell_width)
                 self.page_shell.configure(width=shell_width)
                 if hasattr(self, "top_nav_inner"):
                     self.top_nav_inner.configure(width=shell_width)
@@ -4672,6 +4672,7 @@ class KeyHoldApp:
 if __name__ == "__main__":
     app = KeyHoldApp()
     app.run()
+
 
 
 
