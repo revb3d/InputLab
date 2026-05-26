@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.46"
+APP_VERSION = "1.3.47"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -937,9 +937,8 @@ class KeyHoldApp:
 
         self.content_area = ctk.CTkFrame(
             self.page_shell,
-            fg_color=shell_blend,
-            corner_radius=30,
-            border_color=content_base_bg,
+            fg_color="transparent",
+            corner_radius=0,
             border_width=0,
         )
         self.content_area.pack(fill="x", pady=(2, 22))
@@ -1099,10 +1098,9 @@ class KeyHoldApp:
 
         self.content_shell = ctk.CTkFrame(
             self.content_area,
-            fg_color=shell_blend,
-            corner_radius=24,
-            border_color=content_base_bg,
-            border_width=1,
+            fg_color="transparent",
+            corner_radius=0,
+            border_width=0,
         )
         self.content_shell.pack(fill="both", expand=True, padx=16, pady=(0, 24))
 
@@ -1117,7 +1115,7 @@ class KeyHoldApp:
         self.workspace_accent.pack(fill="x", padx=24, pady=(18, 0))
         self.draw_gradient_strip(self.workspace_accent, 3)
 
-        self.view_stack = ctk.CTkFrame(self.content_shell, fg_color=shell_blend)
+        self.view_stack = ctk.CTkFrame(self.content_shell, fg_color="transparent")
         self.view_stack.pack(fill="both", expand=True)
         self.view_stack.grid_rowconfigure(0, weight=1)
         self.view_stack.grid_columnconfigure(0, weight=1)
@@ -1134,9 +1132,9 @@ class KeyHoldApp:
         self.macro_step_hydration_after_id = None
         self.macro_deferred_step_rows = []
         self.settings_prewarm_pending = False
-        self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color=shell_blend)
-        self.macro_view = ctk.CTkFrame(self.view_stack, fg_color=shell_blend)
-        self.settings_view = ctk.CTkFrame(self.view_stack, fg_color=shell_blend)
+        self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color="transparent")
+        self.macro_view = ctk.CTkFrame(self.view_stack, fg_color="transparent")
+        self.settings_view = ctk.CTkFrame(self.view_stack, fg_color="transparent")
         self.keyboard_view.grid(row=0, column=0, sticky="nsew")
         self.macro_view.grid(row=0, column=0, sticky="nsew")
         self.settings_view.grid(row=0, column=0, sticky="nsew")
