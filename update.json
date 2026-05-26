@@ -1,9 +1,9 @@
 {
-  "version": "1.3.33",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.33/InputLabSetup.exe",
+  "version": "1.3.34",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.34/InputLabSetup.exe",
   "notes": [
-    "Changed the large outer content shell to use the same blended app background instead of the darker shell fill, removing the remaining hard dark slab around the top-left/header area.",
-    "Kept the current layout and controls unchanged.",
-    "Preserved the prior startup/background/profile text fixes from v1.3.32."
+    "Made the outer header/wrapper chain transparent so the root gradient background shows through around the top-left logo and header area.",
+    "Kept the current layout, sizing, and controls unchanged.",
+    "Preserved the prior shell/background fixes from v1.3.33."
   ]
 }

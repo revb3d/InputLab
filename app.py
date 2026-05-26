@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.33"
+APP_VERSION = "1.3.34"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -843,19 +843,19 @@ class KeyHoldApp:
         self.root.configure(fg_color=shell_blend)
         self.root.unbind_all("<MouseWheel>")
 
-        outer = ctk.CTkFrame(self.root, fg_color=shell_blend, corner_radius=0)
+        outer = ctk.CTkFrame(self.root, fg_color="transparent", corner_radius=0)
         outer.pack(fill="both", expand=True, padx=24, pady=20)
         self.ui_root = outer
 
-        top_nav = ctk.CTkFrame(outer, fg_color=shell_blend)
+        top_nav = ctk.CTkFrame(outer, fg_color="transparent")
         top_nav.pack(fill="x", pady=(0, 14))
 
-        self.top_nav_inner = ctk.CTkFrame(top_nav, fg_color=shell_blend, height=42)
+        self.top_nav_inner = ctk.CTkFrame(top_nav, fg_color="transparent", height=42)
         self.top_nav_inner.pack(fill="x")
         self.top_nav_inner.grid_columnconfigure(0, weight=1)
         self.top_nav_inner.grid_columnconfigure(1, weight=0)
 
-        nav_left = ctk.CTkFrame(self.top_nav_inner, fg_color=shell_blend)
+        nav_left = ctk.CTkFrame(self.top_nav_inner, fg_color="transparent")
         nav_left.grid(row=0, column=0, sticky="w")
         if LOGO_PNG_PATH.exists():
             self.logo_image = ctk.CTkImage(
@@ -871,7 +871,7 @@ class KeyHoldApp:
             text_color=THEME["text"],
         ).pack(side="left", pady=(1, 0))
 
-        nav_right = ctk.CTkFrame(self.top_nav_inner, fg_color=shell_blend)
+        nav_right = ctk.CTkFrame(self.top_nav_inner, fg_color="transparent")
         nav_right.grid(row=0, column=1, sticky="e")
         self.header_version_chip = ctk.CTkLabel(
             nav_right,
@@ -900,7 +900,7 @@ class KeyHoldApp:
         )
         self.header_update_button.pack(side="left")
 
-        scroll_host = ctk.CTkFrame(outer, fg_color=shell_blend, corner_radius=0)
+        scroll_host = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
         scroll_host.pack(fill="both", expand=True)
 
         self.body_canvas = tk.Canvas(
@@ -4672,5 +4672,6 @@ class KeyHoldApp:
 if __name__ == "__main__":
     app = KeyHoldApp()
     app.run()
+
 
 
