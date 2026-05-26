@@ -721,11 +721,25 @@ class KeyHoldApp:
             profile = self.get_selected_profile()
             typed_name = self.profile_name_entry.get().strip()
             if typed_name:
-                profile["name"] = typed_name
+                duplicate_name = any(
+                    other_profile["id"] != profile["id"] and other_profile["name"].lower() == typed_name.lower()
+                    for other_profile in self.macro_profiles
+                )
+                if not duplicate_name:
+                    profile["name"] = typed_name
 
             typed_macro_hotkey = self.macro_hotkey_entry.get().strip().lower()
             if typed_macro_hotkey:
-                profile["hotkey"] = typed_macro_hotkey
+                try:
+                    keyboard.parse_hotkey(typed_macro_hotkey)
+                    duplicate_hotkey = any(
+                        other_profile["id"] != profile["id"] and other_profile["hotkey"] == typed_macro_hotkey
+                        for other_profile in self.macro_profiles
+                    )
+                    if not duplicate_hotkey:
+                        profile["hotkey"] = typed_macro_hotkey
+                except ValueError:
+                    pass
 
             typed_interval = self.macro_interval_entry.get().strip()
             if typed_interval:
@@ -3247,30 +3261,32 @@ class KeyHoldApp:
         if not hasattr(self, "profile_tabs_frame"):
             return
 
-        values = [profile["name"] for profile in self.macro_profiles] or ["Main Macro"]
-        selected_name = self.get_selected_profile()["name"]
+        profiles = self.macro_profiles or [self.build_new_profile("Main Macro")]
+        selected_profile_id = self.get_selected_profile()["id"]
         for child in self.profile_tabs_frame.winfo_children():
             child.destroy()
         self.profile_tab_widgets = []
-        for index in range(len(values)):
+        for index in range(len(profiles)):
             self.profile_tabs_frame.grid_columnconfigure(index, weight=1, uniform="profile_tabs")
 
         frame_width = self.profile_tabs_frame.winfo_width()
         if frame_width <= 1:
             frame_width = self.profile_section.winfo_width() - 36 if hasattr(self, "profile_section") else 0
         available_width = max(frame_width - 12, 560) if frame_width > 1 else max(self.content_shell_width - 520, 620) if self.content_shell_width else 920
-        gap = 10 * max(len(values) - 1, 0)
-        button_width = max(168, min(max((available_width - gap) // max(len(values), 1), 168), 320))
+        gap = 10 * max(len(profiles) - 1, 0)
+        button_width = max(168, min(max((available_width - gap) // max(len(profiles), 1), 168), 320))
 
-        for index, value in enumerate(values):
+        for index, profile in enumerate(profiles):
+            value = profile["name"]
+            profile_id = profile["id"]
             host = ctk.CTkFrame(self.profile_tabs_frame, fg_color="transparent", height=40, width=button_width)
-            host.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else 5, 0 if index == len(values) - 1 else 5))
+            host.grid(row=0, column=index, sticky="ew", padx=(0 if index == 0 else 5, 0 if index == len(profiles) - 1 else 5))
             host.grid_propagate(False)
-            if value == selected_name:
+            if profile_id == selected_profile_id:
                 button = GradientButton(
                     host,
                     text=self.ellipsize_text(value, max(12, min(button_width // 10, 26))),
-                    command=lambda target=value: self.on_profile_tab_selected(target),
+                    command=lambda target=profile_id: self.on_profile_tab_selected(target),
                     colors=(THEME["blue"], THEME["amber"], THEME["cyan"]),
                     hover_colors=(THEME["blue_hover"], THEME["amber"], THEME["cyan"]),
                     width=max(button_width - 2, 144),
@@ -3288,10 +3304,10 @@ class KeyHoldApp:
                     hover_color=THEME["field_hover"],
                     text_color=THEME["text"],
                     font=self.ui_font(13, "bold", role="body"),
-                    command=lambda target=value: self.on_profile_tab_selected(target),
+                    command=lambda target=profile_id: self.on_profile_tab_selected(target),
                 )
             button.pack(fill="both", expand=True)
-            self.profile_tab_widgets.append({"host": host, "button": button, "text": value})
+            self.profile_tab_widgets.append({"host": host, "button": button, "text": value, "id": profile_id})
         self.delete_profile_button.configure(state="normal" if len(self.macro_profiles) > 1 else "disabled")
         self.refresh_hotkey_summary()
         self.root.after_idle(self.sync_profile_tab_widths)
@@ -3611,15 +3627,12 @@ class KeyHoldApp:
             return f"{minutes}m {seconds}s"
         return f"{seconds}s"
 
-    def on_profile_tab_selected(self, selected_name: str) -> None:
+    def on_profile_tab_selected(self, profile_id: str) -> None:
         if not self.profile_editor_ready:
             return
 
         self.sync_config_from_ui()
-        for profile in self.macro_profiles:
-            if profile["name"] == selected_name:
-                self.selected_macro_profile_id = profile["id"]
-                break
+        self.selected_macro_profile_id = profile_id
         self.load_selected_profile_into_editor()
         self.save_config()
 
