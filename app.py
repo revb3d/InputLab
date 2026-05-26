@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.37"
+APP_VERSION = "1.3.38"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -903,7 +903,7 @@ class KeyHoldApp:
         scroll_host = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
         scroll_host.pack(fill="both", expand=True)
 
-        content_base_bg = THEME["app_bg"]
+        content_base_bg = shell_blend
 
         self.body_canvas = tk.Canvas(
             scroll_host,
@@ -937,9 +937,9 @@ class KeyHoldApp:
 
         self.content_area = ctk.CTkFrame(
             self.page_shell,
-            fg_color=content_base_bg,
+            fg_color="transparent",
             corner_radius=30,
-            border_color=content_base_bg,
+            border_color="transparent",
             border_width=0,
         )
         self.content_area.pack(fill="x", pady=(2, 22))
@@ -4674,6 +4674,7 @@ class KeyHoldApp:
 if __name__ == "__main__":
     app = KeyHoldApp()
     app.run()
+
 
 
 

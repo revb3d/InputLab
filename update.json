@@ -1,9 +1,9 @@
 {
-  "version": "1.3.37",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.37/InputLabSetup.exe",
+  "version": "1.3.38",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.38/InputLabSetup.exe",
   "notes": [
-    "Changed the full-width outer content surface (canvas/frame/page shell) to use the app base background instead of the darker shell fill, so only the actual cards remain dark and the surrounding app shell blends with the background.",
+    "Changed the centered page shell base from near-black to the same blended dark background as the rest of the app, removing the remaining hard dark slab around the content.",
     "Kept layout and controls unchanged.",
-    "Preserved prior fixes from v1.3.36."
+    "Preserved prior shell/background fixes from v1.3.37."
   ]
 }
