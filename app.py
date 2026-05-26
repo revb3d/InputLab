@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.44"
+APP_VERSION = "1.3.45"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -3997,6 +3997,19 @@ class KeyHoldApp:
         self.sync_active_profile_fields()
         self.reset_macro_progress()
         self.update_activity_indicators()
+        self.macro_thread = threading.Thread(
+            target=self.run_macro_loop,
+            args=(target_profile, active_steps),
+            daemon=True,
+        )
+        self.macro_thread.start()
+        if from_hotkey and self.profile_editor_ready and self.current_view == "macro":
+            self.root.after(60, self.refresh_profile_tabs)
+            self.root.after(60, self.load_selected_profile_into_editor)
+        self.set_macro_status(
+            "Running",
+            f"{target_profile['name']} is looping now with a {target_profile['interval_seconds']:g} second interval. Press {target_profile['hotkey'].upper()} again to stop it.",
+        )
 
     @staticmethod
     def set_entry_if_changed(entry, value: str) -> None:
@@ -4012,19 +4025,6 @@ class KeyHoldApp:
             return
         textbox.delete("1.0", "end")
         textbox.insert("1.0", value)
-        self.macro_thread = threading.Thread(
-            target=self.run_macro_loop,
-            args=(target_profile, active_steps),
-            daemon=True,
-        )
-        self.macro_thread.start()
-        if from_hotkey and self.profile_editor_ready and self.current_view == "macro":
-            self.root.after(60, self.refresh_profile_tabs)
-            self.root.after(60, self.load_selected_profile_into_editor)
-        self.set_macro_status(
-            "Running",
-            f"{target_profile['name']} is looping now with a {target_profile['interval_seconds']:g} second interval. Press {target_profile['hotkey'].upper()} again to stop it.",
-        )
 
     def stop_macro(self) -> None:
         stopped_profile = self.get_profile_by_id(self.active_macro_profile_id) if self.active_macro_profile_id else None
