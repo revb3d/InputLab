@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.41"
+APP_VERSION = "1.3.42"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -926,14 +926,12 @@ class KeyHoldApp:
         self.body_scrollbar.pack(side="right", fill="y", padx=(10, 0))
         self.body_canvas.configure(yscrollcommand=self.body_scrollbar.set)
 
-        self.body_canvas_frame = tk.Frame(self.body_canvas, bg=content_base_bg, bd=0, highlightthickness=0)
-        self.body_canvas_window = self.body_canvas.create_window((0, 0), window=self.body_canvas_frame, anchor="nw")
-        self.body_canvas_frame.bind("<Configure>", self.on_body_scroll_frame_configure)
         self.body_canvas.bind("<Configure>", self.on_body_canvas_configure)
         self.root.bind_all("<MouseWheel>", self.on_body_mousewheel, add="+")
 
-        self.page_shell = ctk.CTkFrame(self.body_canvas_frame, fg_color=content_base_bg, corner_radius=0)
-        self.page_shell.pack(fill="x", expand=True)
+        self.page_shell = ctk.CTkFrame(self.body_canvas, fg_color="transparent", corner_radius=0)
+        self.body_canvas_window = self.body_canvas.create_window((0, 0), window=self.page_shell, anchor="nw")
+        self.page_shell.bind("<Configure>", self.on_body_scroll_frame_configure)
 
         self.content_area = ctk.CTkFrame(
             self.page_shell,
