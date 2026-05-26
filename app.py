@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.30"
+APP_VERSION = "1.3.31"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -897,6 +897,7 @@ class KeyHoldApp:
                 )
 
             if hasattr(self, "macro_step_widgets"):
+                self.hydrate_all_macro_steps_now()
                 profile["steps"] = self.collect_macro_steps(include_blank_steps=True)
             if hasattr(self, "macro_window_title_entry"):
                 profile["run_condition"] = {
@@ -1300,6 +1301,10 @@ class KeyHoldApp:
         self.macro_editor_init_pending = False
         self.macro_content_initialized = False
         self.macro_content_init_pending = False
+        self.macro_secondary_content_initialized = False
+        self.macro_secondary_content_pending = False
+        self.macro_step_hydration_after_id = None
+        self.macro_deferred_step_rows = []
         self.settings_prewarm_pending = False
         self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
         self.macro_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
@@ -1390,9 +1395,24 @@ class KeyHoldApp:
         if hasattr(self, "macro_loading_card"):
             self.macro_loading_card.destroy()
             self.macro_loading_card = None
-        self.populate_macro_tab_content(self.macro_shell_frame, self.macro_left_column, self.macro_right_column)
+        self.populate_macro_tab_primary_content(self.macro_shell_frame, self.macro_left_column, self.macro_right_column)
         self.macro_content_initialized = True
         self.schedule_macro_editor_initialization(0)
+        self.schedule_macro_secondary_content_initialization(45)
+
+    def schedule_macro_secondary_content_initialization(self, delay_ms: int) -> None:
+        if self.macro_secondary_content_initialized or self.macro_secondary_content_pending or not self.macro_content_initialized:
+            return
+        self.macro_secondary_content_pending = True
+        self.root.after(delay_ms, self.initialize_macro_secondary_content)
+
+    def initialize_macro_secondary_content(self) -> None:
+        self.macro_secondary_content_pending = False
+        if self.macro_secondary_content_initialized or not self.macro_content_initialized or not self.root.winfo_exists():
+            return
+        self.populate_macro_tab_secondary_content(self.macro_shell_frame, self.macro_left_column, self.macro_right_column)
+        self.macro_secondary_content_initialized = True
+        self.load_selected_profile_into_editor()
 
     def schedule_macro_editor_initialization(self, delay_ms: int) -> None:
         if (
@@ -1779,7 +1799,7 @@ class KeyHoldApp:
         )
         self.macro_loading_card.pack(fill="x", pady=(0, 12))
 
-    def populate_macro_tab_content(self, shell, left, right) -> None:
+    def populate_macro_tab_primary_content(self, shell, left, right) -> None:
         config_split = ctk.CTkFrame(left, fg_color="transparent")
         config_split.pack(fill="x", pady=(0, 10))
         config_split.grid_columnconfigure(0, weight=8, minsize=460)
@@ -1833,26 +1853,9 @@ class KeyHoldApp:
         )
         self.delete_profile_button.grid(row=1, column=1, sticky="ew", padx=(6, 0))
 
-        profile_share_actions = ctk.CTkFrame(profile_section, fg_color="transparent")
-        profile_share_actions.pack(fill="x", padx=18, pady=(8, 16))
-        profile_share_actions.grid_columnconfigure((0, 1), weight=1, uniform="profile_share")
-
-        self.import_profiles_button = ctk.CTkButton(
-            profile_share_actions, text="Import Profiles", height=38, corner_radius=12,
-            fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"), command=self.import_macro_profiles,
-        )
-        self.import_profiles_button.grid(row=0, column=0, sticky="ew", padx=(0, 6))
-
-        self.export_profiles_button = ctk.CTkButton(
-            profile_share_actions, text="Export Profiles", height=38, corner_radius=12,
-            fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"],
-            font=self.ui_font(13, "bold", role="body"), command=self.export_macro_profiles,
-        )
-        self.export_profiles_button.grid(row=0, column=1, sticky="ew", padx=(6, 0))
-
         setup = self.build_section_frame(config_split)
         setup.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+        self.macro_setup_section = setup
         setup_grid = ctk.CTkFrame(setup, fg_color="transparent")
         setup_grid.pack(fill="x", padx=10, pady=(10, 4))
         setup_grid.grid_columnconfigure((0, 1), weight=1, uniform="macro_fields")
@@ -1885,6 +1888,7 @@ class KeyHoldApp:
 
         progress_frame = self.build_section_frame(right)
         progress_frame.pack(fill="x", pady=(0, 10))
+        self.macro_progress_frame = progress_frame
         progress_header_row = ctk.CTkFrame(progress_frame, fg_color="transparent")
         progress_header_row.pack(fill="x", padx=18, pady=(16, 10))
         ctk.CTkLabel(progress_header_row, text="Live progress", font=self.ui_font(15, "bold", role="body"), text_color=THEME["text"]).pack(side="left")
@@ -1898,26 +1902,9 @@ class KeyHoldApp:
         status_card = self.build_status_card(right, self.macro_status_var, self.macro_detail_var, wraplength=330)
         status_card.pack(fill="x", pady=(0, 10))
 
-        stats_section = self.build_section_frame(right)
-        stats_section.pack(fill="x", pady=(0, 10))
-        ctk.CTkLabel(stats_section, text="Run statistics", font=self.ui_font(15, "bold", role="body"), text_color=THEME["text"]).pack(anchor="w", padx=18, pady=(16, 8))
-        self.profile_stats_var = ctk.StringVar(value="")
-        ctk.CTkLabel(
-            stats_section, textvariable=self.profile_stats_var, font=self.ui_font(13, role="body"),
-            text_color=THEME["muted"], justify="left", anchor="w", wraplength=330,
-        ).pack(anchor="w", padx=18, pady=(0, 16))
-
-        notes_section = self.build_section_frame(right)
-        notes_section.pack(fill="x", pady=(0, 10))
-        ctk.CTkLabel(notes_section, text="Profile notes", font=self.ui_font(15, "bold", role="body"), text_color=THEME["text"]).pack(anchor="w", padx=18, pady=(16, 8))
-        self.profile_notes_text = ctk.CTkTextbox(
-            notes_section, height=84, corner_radius=14, border_width=1, border_color=THEME["border"],
-            fg_color=THEME["field"], text_color=THEME["text"], font=self.ui_font(13, role="body"), wrap="word",
-        )
-        self.profile_notes_text.pack(fill="x", padx=18, pady=(0, 16))
-
         steps_frame = self.build_section_frame(shell)
         steps_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 12))
+        self.macro_steps_frame = steps_frame
         header = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
         header.pack(fill="x", padx=18, pady=(14, 8))
         header.grid_columnconfigure(0, weight=0)
@@ -1935,10 +1922,17 @@ class KeyHoldApp:
         self.macro_steps_rows_frame.pack(fill="x")
         self.macro_step_widgets = []
         self.macro_step_widget_pool = []
-        self.render_macro_steps(self.macro_steps)
+        self.macro_steps_loading_label = ctk.CTkLabel(
+            self.macro_steps_rows_frame,
+            text="Loading macro steps...",
+            font=self.ui_font(12, role="body"),
+            text_color=THEME["muted"],
+        )
+        self.macro_steps_loading_label.pack(anchor="w", padx=18, pady=(8, 12))
 
         step_actions = ctk.CTkFrame(steps_frame, fg_color=THEME["panel"])
         step_actions.pack(fill="x", padx=18, pady=(8, 16))
+        self.macro_step_actions_frame = step_actions
         self.add_step_button = ctk.CTkButton(step_actions, text="Add Step", height=38, corner_radius=12, fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"], font=self.ui_font(13, "bold", role="body"), command=self.add_macro_step)
         self.add_step_button.pack(side="left")
         self.record_macro_button = ctk.CTkButton(step_actions, text="Start Recorder", height=38, corner_radius=12, fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"], font=self.ui_font(13, "bold", role="body"), command=self.toggle_macro_recorder)
@@ -1974,6 +1968,84 @@ class KeyHoldApp:
 
         self.macro_status_badge = status_card.badge
         self.profile_editor_ready = True
+
+    def populate_macro_tab_secondary_content(self, shell, left, right) -> None:
+        profile_share_actions = ctk.CTkFrame(self.profile_section, fg_color="transparent")
+        profile_share_actions.pack(fill="x", padx=18, pady=(8, 16))
+        profile_share_actions.grid_columnconfigure((0, 1), weight=1, uniform="profile_share")
+
+        self.import_profiles_button = ctk.CTkButton(
+            profile_share_actions, text="Import Profiles", height=38, corner_radius=12,
+            fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"],
+            font=self.ui_font(13, "bold", role="body"), command=self.import_macro_profiles,
+        )
+        self.import_profiles_button.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+
+        self.export_profiles_button = ctk.CTkButton(
+            profile_share_actions, text="Export Profiles", height=38, corner_radius=12,
+            fg_color=THEME["field"], hover_color=THEME["field_hover"], text_color=THEME["text"],
+            font=self.ui_font(13, "bold", role="body"), command=self.export_macro_profiles,
+        )
+        self.export_profiles_button.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+
+        stats_section = self.build_section_frame(right)
+        stats_section.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(stats_section, text="Run statistics", font=self.ui_font(15, "bold", role="body"), text_color=THEME["text"]).pack(anchor="w", padx=18, pady=(16, 8))
+        self.profile_stats_var = ctk.StringVar(value="")
+        ctk.CTkLabel(
+            stats_section, textvariable=self.profile_stats_var, font=self.ui_font(13, role="body"),
+            text_color=THEME["muted"], justify="left", anchor="w", wraplength=330,
+        ).pack(anchor="w", padx=18, pady=(0, 16))
+
+        notes_section = self.build_section_frame(right)
+        notes_section.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(notes_section, text="Profile notes", font=self.ui_font(15, "bold", role="body"), text_color=THEME["text"]).pack(anchor="w", padx=18, pady=(16, 8))
+        self.profile_notes_text = ctk.CTkTextbox(
+            notes_section, height=84, corner_radius=14, border_width=1, border_color=THEME["border"],
+            fg_color=THEME["field"], text_color=THEME["text"], font=self.ui_font(13, role="body"), wrap="word",
+        )
+        self.profile_notes_text.pack(fill="x", padx=18, pady=(0, 16))
+        self.begin_macro_step_hydration(self.get_selected_profile()["steps"])
+
+    def begin_macro_step_hydration(self, steps: list[dict]) -> None:
+        rows = [step.copy() for step in (steps if steps else [{"button": "", "hold_ms": 90, "delay_ms": 120}])]
+        self.macro_deferred_step_rows = rows
+        if hasattr(self, "macro_steps_loading_label") and self.macro_steps_loading_label is not None:
+            self.macro_steps_loading_label.pack_forget()
+        initial_count = min(len(rows), 4)
+        if initial_count:
+            self.render_macro_steps(rows[:initial_count])
+        self.macro_deferred_step_rows = rows[initial_count:]
+        self.schedule_next_macro_step_hydration()
+
+    def schedule_next_macro_step_hydration(self, delay_ms: int = 20) -> None:
+        if self.macro_step_hydration_after_id is not None:
+            self.root.after_cancel(self.macro_step_hydration_after_id)
+        if not self.macro_deferred_step_rows:
+            self.macro_step_hydration_after_id = None
+            return
+        self.macro_step_hydration_after_id = self.root.after(delay_ms, self.hydrate_next_macro_step_chunk)
+
+    def hydrate_next_macro_step_chunk(self) -> None:
+        self.macro_step_hydration_after_id = None
+        if not self.macro_deferred_step_rows:
+            return
+        visible_rows = self.parse_macro_steps_from_widgets(include_blank_steps=True) if hasattr(self, "macro_step_widgets") else []
+        next_chunk = self.macro_deferred_step_rows[:4]
+        self.macro_deferred_step_rows = self.macro_deferred_step_rows[4:]
+        self.render_macro_steps(visible_rows + next_chunk)
+        if self.macro_deferred_step_rows:
+            self.schedule_next_macro_step_hydration()
+
+    def hydrate_all_macro_steps_now(self) -> None:
+        if self.macro_step_hydration_after_id is not None:
+            self.root.after_cancel(self.macro_step_hydration_after_id)
+            self.macro_step_hydration_after_id = None
+        if not self.macro_deferred_step_rows:
+            return
+        visible_rows = self.parse_macro_steps_from_widgets(include_blank_steps=True) if hasattr(self, "macro_step_widgets") else []
+        self.render_macro_steps(visible_rows + self.macro_deferred_step_rows)
+        self.macro_deferred_step_rows = []
 
     def build_settings_tab(self, tab) -> None:
         _, left, right = self.build_dashboard_tab_shell(
@@ -3338,18 +3410,23 @@ class KeyHoldApp:
         self.set_entry_if_changed(self.macro_window_title_entry, profile["run_condition"]["window_title"])
         self.set_entry_if_changed(self.macro_process_name_entry, profile["run_condition"]["process_name"])
         self.set_entry_if_changed(self.macro_interval_entry, f"{profile['interval_seconds']:g}")
-        self.set_textbox_if_changed(self.profile_notes_text, profile.get("notes", ""))
+        if hasattr(self, "profile_notes_text"):
+            self.set_textbox_if_changed(self.profile_notes_text, profile.get("notes", ""))
 
-        self.render_macro_steps(profile["steps"])
+        if self.macro_secondary_content_initialized:
+            self.begin_macro_step_hydration(profile["steps"])
 
         self.sync_active_profile_fields()
-        self.refresh_profile_stats_view(profile)
+        if hasattr(self, "profile_stats_var"):
+            self.refresh_profile_stats_view(profile)
         self.macro_detail_var.set(
             f"Press {profile['hotkey'].upper()} to start or stop the {profile['name']} controller macro."
         )
         self.update_activity_indicators()
 
     def refresh_profile_stats_view(self, profile: dict | None = None) -> None:
+        if not hasattr(self, "profile_stats_var"):
+            return
         target_profile = profile or self.get_selected_profile()
         stats = target_profile.get("stats", default_profile_stats())
         session_stats = self.session_profile_stats.setdefault(
@@ -3816,7 +3893,7 @@ class KeyHoldApp:
             f"Added {len(imported_profiles)} controller macro profile(s) without removing your existing profiles.",
         )
 
-    def collect_macro_steps(self, include_blank_steps: bool = False):
+    def parse_macro_steps_from_widgets(self, include_blank_steps: bool = False):
         parsed_steps = []
         for widget_set in self.macro_step_widgets:
             button_name = widget_set["button"].get().strip().upper()
@@ -3840,6 +3917,11 @@ class KeyHoldApp:
                 }
             )
         return parsed_steps
+
+    def collect_macro_steps(self, include_blank_steps: bool = False):
+        if self.macro_deferred_step_rows:
+            self.hydrate_all_macro_steps_now()
+        return self.parse_macro_steps_from_widgets(include_blank_steps=include_blank_steps)
 
     def apply_macro_mapping(self) -> None:
         profile = self.get_selected_profile()
@@ -3902,7 +3984,8 @@ class KeyHoldApp:
             "window_title": self.macro_window_title_entry.get().strip(),
             "process_name": self.macro_process_name_entry.get().strip().lower(),
         }
-        profile["notes"] = self.profile_notes_text.get("1.0", "end").strip()
+        if hasattr(self, "profile_notes_text"):
+            profile["notes"] = self.profile_notes_text.get("1.0", "end").strip()
         self.refresh_profile_tabs()
         self.register_macro_hotkeys()
         self.sync_active_profile_fields()

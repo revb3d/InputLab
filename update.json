@@ -1,9 +1,9 @@
 {
-  "version": "1.3.30",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.30/InputLabSetup.exe",
+  "version": "1.3.31",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.31/InputLabSetup.exe",
   "notes": [
-    "Startup now defers background rendering, runtime hooks, update checks, and hidden-module prewarm work until after the first window paint.",
-    "Controller Macro internals remain lazy-built and the startup path keeps Keyboard Hold as the cheapest first view.",
-    "First visible window time improved by removing more noncritical work from the initial construction path."
+    "Controller Macro now opens in phased stages: shell first, primary controls next, and deferred secondary panels after paint.",
+    "Macro profile notes, statistics, import/export actions, and step-row hydration are delayed so the first open path stays responsive.",
+    "First Controller Macro open time was reduced significantly without removing any features."
   ]
 }
