@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.40"
+APP_VERSION = "1.3.41"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -937,7 +937,7 @@ class KeyHoldApp:
 
         self.content_area = ctk.CTkFrame(
             self.page_shell,
-            fg_color=content_base_bg,
+            fg_color="transparent",
             corner_radius=30,
             border_color=content_base_bg,
             border_width=0,
@@ -1099,7 +1099,7 @@ class KeyHoldApp:
 
         self.content_shell = ctk.CTkFrame(
             self.content_area,
-            fg_color=content_base_bg,
+            fg_color="transparent",
             corner_radius=24,
             border_color=content_base_bg,
             border_width=1,
@@ -1134,9 +1134,9 @@ class KeyHoldApp:
         self.macro_step_hydration_after_id = None
         self.macro_deferred_step_rows = []
         self.settings_prewarm_pending = False
-        self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color=content_base_bg)
-        self.macro_view = ctk.CTkFrame(self.view_stack, fg_color=content_base_bg)
-        self.settings_view = ctk.CTkFrame(self.view_stack, fg_color=content_base_bg)
+        self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color="transparent")
+        self.macro_view = ctk.CTkFrame(self.view_stack, fg_color="transparent")
+        self.settings_view = ctk.CTkFrame(self.view_stack, fg_color="transparent")
         self.keyboard_view.grid(row=0, column=0, sticky="nsew")
         self.macro_view.grid(row=0, column=0, sticky="nsew")
         self.settings_view.grid(row=0, column=0, sticky="nsew")
