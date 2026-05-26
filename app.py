@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.45"
+APP_VERSION = "1.3.46"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -2200,7 +2200,12 @@ class KeyHoldApp:
             widget_set["down"].configure(state="normal" if index < len(self.macro_step_widgets) else "disabled")
 
     def add_macro_step(self) -> None:
+        if self.macro_deferred_step_rows:
+            self.hydrate_all_macro_steps_now()
+        before_count = len(self.macro_step_widget_pool)
         self.create_macro_step_row({"button": "", "hold_ms": 90, "delay_ms": 120})
+        new_widget = self.macro_step_widget_pool[before_count]
+        self.macro_step_widgets.append(new_widget)
         self.refresh_macro_step_numbers()
         self.on_body_scroll_frame_configure()
         self.set_macro_status("Step added", "Added a new blank controller macro step.")

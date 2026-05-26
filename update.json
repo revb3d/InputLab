@@ -1,9 +1,9 @@
 {
-  "version": "1.3.45",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.45/InputLabSetup.exe",
+  "version": "1.3.46",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.46/InputLabSetup.exe",
   "notes": [
-    "Fixed the controller macro start path so starting a macro actually launches the runtime thread again.",
-    "This restores controller macro execution for both the Start Macro button and registered macro hotkeys.",
-    "No controller behavior or layout was redesigned; this is a direct runtime fix."
+    "Fixed controller macro step saving so newly added rows are included in the active step list immediately.",
+    "This prevents macros with more than five steps from collapsing back down when saved or started.",
+    "No macro behavior was redesigned; this is a direct editor state fix."
   ]
 }
