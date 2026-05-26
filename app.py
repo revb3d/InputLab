@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.32"
+APP_VERSION = "1.3.33"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -935,7 +935,7 @@ class KeyHoldApp:
 
         self.content_area = ctk.CTkFrame(
             self.page_shell,
-            fg_color=THEME["shell"],
+            fg_color=shell_blend,
             corner_radius=30,
             border_color=shell_blend,
             border_width=0,
@@ -4672,4 +4672,5 @@ class KeyHoldApp:
 if __name__ == "__main__":
     app = KeyHoldApp()
     app.run()
+
 
