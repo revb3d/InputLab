@@ -37,7 +37,7 @@ APP_DIR = Path(__file__).resolve().parent
 USER_DATA_DIR = Path.home() / "AppData" / "Local" / "InputLab"
 CONFIG_PATH = USER_DATA_DIR / "config.json"
 LEGACY_CONFIG_PATH = APP_DIR / "config.json"
-APP_VERSION = "1.3.26"
+APP_VERSION = "1.3.27"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -51,8 +51,8 @@ BODY_FONT_FAMILY = "Manrope"
 DISPLAY_FONT_FAMILY = "Syne"
 HIGH_PERFORMANCE_UI = True
 ENABLE_BACKGROUND_ANIMATION = not HIGH_PERFORMANCE_UI
-BACKGROUND_RENDER_SCALE = 0.5 if HIGH_PERFORMANCE_UI else 1.0
-BACKGROUND_RERENDER_THRESHOLD = 120 if HIGH_PERFORMANCE_UI else 40
+BACKGROUND_RENDER_SCALE = 0.42 if HIGH_PERFORMANCE_UI else 1.0
+BACKGROUND_RERENDER_THRESHOLD = 180 if HIGH_PERFORMANCE_UI else 40
 MACRO_PROGRESS_INTERVAL = 0.1 if HIGH_PERFORMANCE_UI else 0.05
 THEME_PRESETS = {
     "Website Match": {
@@ -720,10 +720,12 @@ class KeyHoldApp:
         self.overlay_labels = {}
         self.overlay_update_after_id = None
         self.window_opaque_after_id = None
-        self.macro_progress_after_id = None
+        self.macro_progress_poll_after_id = None
+        self.macro_progress_lock = threading.Lock()
         self.macro_progress_pending = {}
         self.macro_progress_min_interval = MACRO_PROGRESS_INTERVAL
         self.macro_progress_next_due = 0.0
+        self.macro_completion_pending = False
         self.tray_icon = None
         self.tray_thread = None
         self.exiting_to_system = False
@@ -743,6 +745,7 @@ class KeyHoldApp:
         self.root.after(0, self.show_centered_window)
         self.register_key_hold_hotkey(self.toggle_hotkey)
         self.register_macro_hotkeys()
+        self.start_macro_progress_poller()
         self.root.after(1200, self.auto_check_for_updates)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -2913,7 +2916,7 @@ class KeyHoldApp:
             ),
             fill=(215, 219, 87, 42),
         )
-        top_left = top_left.filter(ImageFilter.GaussianBlur(84 if HIGH_PERFORMANCE_UI else 160))
+        top_left = top_left.filter(ImageFilter.GaussianBlur(56 if HIGH_PERFORMANCE_UI else 160))
 
         bottom_right = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
         bottom_right_draw = ImageDraw.Draw(bottom_right)
@@ -2935,7 +2938,7 @@ class KeyHoldApp:
             ),
             fill=(79, 195, 156, 46),
         )
-        bottom_right = bottom_right.filter(ImageFilter.GaussianBlur(88 if HIGH_PERFORMANCE_UI else 170))
+        bottom_right = bottom_right.filter(ImageFilter.GaussianBlur(60 if HIGH_PERFORMANCE_UI else 170))
 
         center_shadow = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
         center_shadow_draw = ImageDraw.Draw(center_shadow)
@@ -2943,12 +2946,12 @@ class KeyHoldApp:
             (sx(width * 0.12), sy(height * 0.08), sx(width * 0.92), sy(height * 0.96)),
             fill=(8, 10, 10, 70),
         )
-        center_shadow = center_shadow.filter(ImageFilter.GaussianBlur(68 if HIGH_PERFORMANCE_UI else 130))
+        center_shadow = center_shadow.filter(ImageFilter.GaussianBlur(44 if HIGH_PERFORMANCE_UI else 130))
 
         vignette = Image.new("RGBA", (render_width, render_height), (0, 0, 0, 0))
         vignette_draw = ImageDraw.Draw(vignette)
         vignette_draw.rectangle((0, 0, render_width, render_height), fill=(0, 0, 0, 32))
-        vignette = vignette.filter(ImageFilter.GaussianBlur(48 if HIGH_PERFORMANCE_UI else 90))
+        vignette = vignette.filter(ImageFilter.GaussianBlur(32 if HIGH_PERFORMANCE_UI else 90))
 
         base.alpha_composite(top_left)
         base.alpha_composite(bottom_right)
@@ -3539,26 +3542,43 @@ class KeyHoldApp:
         loop_count: str | None = None,
         force: bool = False,
     ) -> None:
-        if current_step is not None:
-            self.macro_progress_pending["current_step"] = current_step
-        if last_action is not None:
-            self.macro_progress_pending["last_action"] = last_action
-        if next_action is not None:
-            self.macro_progress_pending["next_action"] = next_action
-        if loop_count is not None:
-            self.macro_progress_pending["loop_count"] = loop_count
+        with self.macro_progress_lock:
+            if current_step is not None:
+                self.macro_progress_pending["current_step"] = current_step
+            if last_action is not None:
+                self.macro_progress_pending["last_action"] = last_action
+            if next_action is not None:
+                self.macro_progress_pending["next_action"] = next_action
+            if loop_count is not None:
+                self.macro_progress_pending["loop_count"] = loop_count
+            if force:
+                self.macro_progress_next_due = 0.0
 
-        if self.macro_progress_after_id is not None:
+    def start_macro_progress_poller(self) -> None:
+        if self.macro_progress_poll_after_id is not None:
             return
+        self.macro_progress_poll_after_id = self.root.after(50, self.poll_macro_progress_updates)
 
-        now = time.perf_counter()
-        delay_ms = 0 if force or now >= self.macro_progress_next_due else int((self.macro_progress_next_due - now) * 1000)
-        self.macro_progress_after_id = self.root.after(delay_ms, self.flush_macro_progress_update)
+    def poll_macro_progress_updates(self) -> None:
+        self.macro_progress_poll_after_id = None
+        self.flush_macro_progress_update()
+        if self.macro_completion_pending:
+            self.macro_completion_pending = False
+            self.on_macro_loop_complete()
+        try:
+            self.macro_progress_poll_after_id = self.root.after(50, self.poll_macro_progress_updates)
+        except RuntimeError:
+            self.macro_progress_poll_after_id = None
 
     def flush_macro_progress_update(self) -> None:
-        self.macro_progress_after_id = None
-        pending = self.macro_progress_pending
-        self.macro_progress_pending = {}
+        now = time.perf_counter()
+        if now < self.macro_progress_next_due:
+            return
+        with self.macro_progress_lock:
+            if not self.macro_progress_pending:
+                return
+            pending = self.macro_progress_pending
+            self.macro_progress_pending = {}
         if "current_step" in pending:
             self.macro_current_step_var.set(pending["current_step"])
         if "last_action" in pending:
@@ -4030,6 +4050,7 @@ class KeyHoldApp:
         self.active_macro_profile_id = target_profile["id"]
         self.macro_run_started_at = time.perf_counter()
         self.active_macro_loop_count = 0
+        self.macro_completion_pending = False
         self.sync_active_profile_fields()
         self.reset_macro_progress()
         self.update_activity_indicators()
@@ -4065,6 +4086,7 @@ class KeyHoldApp:
             self.save_config()
 
         self.macro_running.clear()
+        self.macro_completion_pending = False
 
         if self.virtual_gamepad is not None:
             try:
@@ -4113,7 +4135,7 @@ class KeyHoldApp:
                 )
                 self.sleep_with_cancel(profile["interval_seconds"])
 
-        self.root.after(0, self.on_macro_loop_complete)
+        self.macro_completion_pending = True
 
     def press_virtual_button(
         self,
@@ -4670,9 +4692,9 @@ class KeyHoldApp:
         if self.window_capture_after_id is not None:
             self.root.after_cancel(self.window_capture_after_id)
             self.window_capture_after_id = None
-        if self.macro_progress_after_id is not None:
-            self.root.after_cancel(self.macro_progress_after_id)
-            self.macro_progress_after_id = None
+        if self.macro_progress_poll_after_id is not None:
+            self.root.after_cancel(self.macro_progress_poll_after_id)
+            self.macro_progress_poll_after_id = None
 
         self.disable_overlay_window()
         self.stop_tray_icon()
