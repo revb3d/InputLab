@@ -1,9 +1,9 @@
 {
-  "version": "1.3.39",
-  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.39/InputLabSetup.exe",
+  "version": "1.3.40",
+  "download_url": "https://github.com/revb3d/InputLab/releases/download/v1.3.40/InputLabSetup.exe",
   "notes": [
-    "Fixed the startup crash caused by using unsupported transparent colors on a CTk frame.",
-    "Kept the centered page shell using the blended dark app background instead of the harsher near-black slab.",
+    "Removed the large dark workspace wrapper surface so only the actual content cards stay dark.",
+    "The main content shell and module view backgrounds now use the same blended app background instead of a separate near-black slab.",
     "Layout and controls remain unchanged."
   ]
 }

@@ -43,7 +43,7 @@ try:
 except ImportError:
     vg = None
 
-APP_VERSION = "1.3.39"
+APP_VERSION = "1.3.40"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/revb3d/InputLab/releases/latest"
 LOGO_PNG_PATH = APP_DIR / "InputLabLogo.png"
 LOGO_ICO_PATH = APP_DIR / "InputLabLogo.ico"
@@ -1099,16 +1099,16 @@ class KeyHoldApp:
 
         self.content_shell = ctk.CTkFrame(
             self.content_area,
-            fg_color=THEME["panel_low"],
+            fg_color=content_base_bg,
             corner_radius=24,
-            border_color=border_subtle,
+            border_color=content_base_bg,
             border_width=1,
         )
         self.content_shell.pack(fill="both", expand=True, padx=16, pady=(0, 24))
 
         self.workspace_accent = tk.Canvas(
             self.content_shell,
-            bg=THEME["panel_low"],
+            bg=content_base_bg,
             height=3,
             bd=0,
             highlightthickness=0,
@@ -1134,9 +1134,9 @@ class KeyHoldApp:
         self.macro_step_hydration_after_id = None
         self.macro_deferred_step_rows = []
         self.settings_prewarm_pending = False
-        self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
-        self.macro_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
-        self.settings_view = ctk.CTkFrame(self.view_stack, fg_color=THEME["panel_low"])
+        self.keyboard_view = ctk.CTkFrame(self.view_stack, fg_color=content_base_bg)
+        self.macro_view = ctk.CTkFrame(self.view_stack, fg_color=content_base_bg)
+        self.settings_view = ctk.CTkFrame(self.view_stack, fg_color=content_base_bg)
         self.keyboard_view.grid(row=0, column=0, sticky="nsew")
         self.macro_view.grid(row=0, column=0, sticky="nsew")
         self.settings_view.grid(row=0, column=0, sticky="nsew")
